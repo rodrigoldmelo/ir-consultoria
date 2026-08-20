@@ -1,0 +1,8 @@
+# Cursor Rules — IR Consultoria
+
+- Isolar da Lis/V&C: sem Calendar, sem meeting-scheduler, WABA própria.
+- Agente **ativo**: formulário → template WhatsApp → conversa → docs → Advbox.
+- Serviço: análise de direito à Restituição do INSS (decisão final humana).
+- Ler `docs/PROJECT_STATUS.md` + `docs/AI_HANDOFF.md` antes de mudar código.
+- Mudanças mínimas; atualizar `docs/CHANGELOG_AI.md` após entregar.
+- Nunca secrets no git; commit só sob pedido.

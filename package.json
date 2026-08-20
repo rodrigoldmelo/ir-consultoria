@@ -1,0 +1,49 @@
+{
+  "name": "ir-consultoria",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Agente WhatsApp ativo — Restituição INSS (IR Consultoria)",
+  "type": "module",
+  "scripts": {
+    "api:dev": "tsx watch backend/index.ts",
+    "api:start": "tsx backend/index.ts",
+    "panel:dev": "vite --config panel/vite.config.ts",
+    "panel:build": "vite build --config panel/vite.config.ts",
+    "typecheck": "tsc -p tsconfig.api.json --noEmit && tsc -p panel/tsconfig.json --noEmit",
+    "smoke": "bash scripts/smoke.sh",
+    "check:env": "bash scripts/check-env.sh",
+    "check:db": "tsx scripts/check-db.ts",
+    "check:agent": "tsx scripts/check-agent.ts",
+    "check:webhook": "tsx scripts/check-webhook-signature.ts",
+    "check:queue": "tsx scripts/check-template-queue.ts",
+    "check:inbox": "tsx scripts/diag-inbox.ts",
+    "sync:vps": "bash scripts/sync-to-vps.sh",
+    "dev": "npm run api:dev"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "lucide-react": "^1.33.0",
+    "openai": "^6.38.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tsx": "^4.19.3",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
