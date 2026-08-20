@@ -11,7 +11,7 @@ Restituição INSS gera **desconfiança** (medo de golpe; serviço pouco conheci
 
 Webhook + `messages` + Phone number ID corretos: “Oi” no número da IR recebe resposta.
 
-1. **Login do painel OK.** Visual Lis: prompt pronto em `docs/PROMPT_CODEX_FRONTEND_LIS.md`. Teste WhatsApp: Configuração → Enviar primeiro contato → **Sim**.
+1. **Código local commitado** (`7181a81` + handoff `555d3ac`). **Push pendente:** ainda não há `git remote origin` (GitHub do IR ainda não existe). Depois do remote: sync VPS + `panel:build` + restart só `ir-consultoria-api`. Teste WhatsApp: Configuração → Enviar primeiro contato → **Sim** (template `contato_inicial`).
 2. Meta: criar `ir_confianca` e `ir_explica_inss` (textos em `docs/META_OUTREACH.md`). Quando aprovados: env na VPS + `IR_FOLLOW_UP_WORKER_ENABLED=true`.
 3. Opcional: `IR_INWINDOW_NUDGE_ENABLED=true` (lembrete em texto se o lead sumir dentro das 24h).
 4. Lead Ads: webhook `https://ir.meuanalistacrm.app/api/ir/webhooks/meta-leads` + campo `leadgen` + formulário com opt-in WhatsApp. Painel no mesmo domínio após `npm run panel:build`.
