@@ -30,10 +30,14 @@ if (!phone) {
   process.exit(1);
 }
 
-const url = process.env.SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url = process.env.IR_SUPABASE_URL ?? process.env.SUPABASE_URL;
+const key =
+  process.env.IR_SUPABASE_SERVICE_ROLE_KEY ??
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) {
-  console.error("SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórios.");
+  console.error(
+    "IR_SUPABASE_URL e IR_SUPABASE_SERVICE_ROLE_KEY são obrigatórios.",
+  );
   process.exit(1);
 }
 
@@ -43,14 +47,14 @@ const db = createClient(url, key, {
 
 const { data: conversations, error: convError } = await db
   .from("ir_conversations")
-  .select("id, phone_number, status, updated_at")
+  .select("id, phone, status, updated_at")
   .order("updated_at", { ascending: false })
   .limit(500);
 
 if (convError) throw new Error(convError.message);
 
 const conversation = (conversations ?? []).find((item) =>
-  phoneMatches(item.phone_number, phone),
+  phoneMatches(item.phone, phone),
 );
 
 if (!conversation) {
