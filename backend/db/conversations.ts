@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "../services/supabase.js";
+import { normalizePhoneDigits, phoneLookupCandidates } from "../services/phone.js";
 import type { ConversationStatus } from "../types/index.js";
 
 export type IrConversationRow = {
@@ -25,7 +26,16 @@ export type IrConversationPanelRow = IrConversationRow & {
 };
 
 function normalizePhoneKey(phone: string): string {
-  return phone.replace(/\D/g, "");
+  return normalizePhoneDigits(phone);
+}
+
+function conversationMatchScore(row: IrConversationRow): number {
+  let score = 0;
+  if (row.lead_id) score += 8;
+  if (row.source === "meta" || row.source === "meta_lead_ads") score += 4;
+  if (row.template_status === "sent") score += 2;
+  if (row.status === "awaiting_first_reply") score += 1;
+  return score;
 }
 
 export async function findOrCreateConversation(input: {
@@ -39,21 +49,27 @@ export async function findOrCreateConversation(input: {
   if (!db) return null;
 
   const digits = normalizePhoneKey(input.phone);
+  const candidates = phoneLookupCandidates(input.phone);
 
-  const { data: existing, error: findErr } = await db
+  const { data: existingRows, error: findErr } = await db
     .from("ir_conversations")
     .select("*")
-    .eq("phone", digits)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .in("phone", candidates)
+    .order("updated_at", { ascending: false })
+    .limit(8);
 
   if (findErr) {
     console.error("[db/conversations] find", findErr.message);
   }
 
+  const existing = ((existingRows ?? []) as IrConversationRow[]).sort((a, b) => {
+    const score = conversationMatchScore(b) - conversationMatchScore(a);
+    if (score !== 0) return score;
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+  })[0];
+
   if (existing) {
-    const row = existing as IrConversationRow;
+    const row = existing;
     const patch: Record<string, string> = {
       updated_at: new Date().toISOString(),
     };
@@ -311,11 +327,7 @@ export async function listConversations(limit = 80): Promise<IrConversationPanel
   const phones = [
     ...new Set(
       conversations
-        .flatMap((row) => {
-          const digits = normalizePhoneKey(row.phone);
-          if (!digits) return [];
-          return [digits, `+${digits}`];
-        })
+        .flatMap((row) => phoneLookupCandidates(row.phone))
         .filter(Boolean),
     ),
   ];
@@ -363,6 +375,12 @@ export async function listConversations(limit = 80): Promise<IrConversationPanel
         const phoneKey = normalizePhoneKey(String(lead.phone ?? ""));
         if (phoneKey && !leadsByPhone.has(phoneKey)) {
           leadsByPhone.set(phoneKey, packed);
+        }
+        for (const candidate of phoneLookupCandidates(String(lead.phone ?? ""))) {
+          const candidateKey = normalizePhoneKey(candidate);
+          if (candidateKey && !leadsByPhone.has(candidateKey)) {
+            leadsByPhone.set(candidateKey, packed);
+          }
         }
       }
     }

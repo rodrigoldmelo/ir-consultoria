@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "../services/supabase.js";
+import { phoneLookupCandidates } from "../services/phone.js";
 import type { IngestedLead, LeadStatus } from "../types/index.js";
 
 export type IrLeadRow = {
@@ -77,8 +78,7 @@ export async function findLeadByPhone(
   const db = getSupabaseAdmin();
   if (!db) return null;
 
-  const digits = phone.replace(/\D/g, "");
-  const candidates = [digits, `+${digits}`];
+  const candidates = phoneLookupCandidates(phone);
 
   for (const value of candidates) {
     const { data, error } = await db
