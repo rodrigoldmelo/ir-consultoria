@@ -376,8 +376,10 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 1280px;
+  width: 100%;
+  max-width: none;
   padding: 24px;
+  box-sizing: border-box;
 }
 
 .section-toolbar {
@@ -920,12 +922,34 @@ button:disabled {
 .source-pill {
   display: inline-flex;
   align-items: center;
-  border-radius: 7px;
-  background: color-mix(in oklch, var(--success) 13%, white);
-  color: color-mix(in oklch, var(--success) 78%, black);
-  padding: 3px 9px;
+  min-height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  padding: 0 10px;
   font-size: 11px;
   font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.source-pill.tone-success {
+  border-color: color-mix(in oklch, var(--success) 30%, var(--border));
+  background: color-mix(in oklch, var(--success) 12%, white);
+  color: var(--success);
+}
+
+.source-pill.tone-warning {
+  border-color: color-mix(in oklch, var(--warning) 30%, var(--border));
+  background: color-mix(in oklch, var(--warning) 14%, white);
+  color: var(--warning-foreground);
+}
+
+.source-pill.tone-muted {
+  border-color: var(--border);
+  background: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .table-action {
@@ -2106,7 +2130,9 @@ th {
   }
 
   .dashboard-grid,
-  .settings-grid {
+  .settings-grid,
+  .dashboard-operational-grid,
+  .dashboard-operational-grid.bottom {
     grid-template-columns: 1fr;
   }
 
@@ -2126,6 +2152,10 @@ th {
     border-left: 0;
     border-top: 1px solid var(--border);
     max-height: 220px;
+  }
+
+  .lis-table {
+    min-width: 720px;
   }
 }
 
@@ -2271,6 +2301,43 @@ th {
 
   .login-footnote {
     display: none;
+  }
+
+  .conversation-list-page,
+  .conversation-detail-page {
+    height: auto;
+    min-height: calc(100vh - 74px);
+  }
+
+  .list-header {
+    height: auto;
+    flex: 0 0 auto;
+    align-items: stretch;
+    flex-direction: column;
+    padding: 12px 14px;
+  }
+
+  .list-header .searchbox {
+    flex: auto;
+    width: 100%;
+  }
+
+  .lis-table-wrap {
+    overflow-x: auto;
+  }
+
+  .lis-table {
+    min-width: 640px;
+  }
+
+  .detail-header {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+  }
+
+  .page-stack {
+    padding: 16px 14px 88px;
   }
 }
 

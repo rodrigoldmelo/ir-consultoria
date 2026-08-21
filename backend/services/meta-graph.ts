@@ -18,7 +18,7 @@ export function isMetaWhatsAppConfigured(): boolean {
 }
 
 export function isMetaGraphConfigured(): boolean {
-  return Boolean(config.meta.whatsappToken);
+  return Boolean(config.meta.pageToken || config.meta.whatsappToken);
 }
 
 function graphUrl(path: string): string {
@@ -29,8 +29,9 @@ function graphUrl(path: string): string {
 async function graphFetch<T>(
   path: string,
   init?: RequestInit,
+  tokenOverride?: string,
 ): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string }> {
-  const token = config.meta.whatsappToken;
+  const token = tokenOverride ?? config.meta.whatsappToken;
   if (!token) {
     return { ok: false, status: 0, error: "meta_token_not_configured" };
   }
@@ -132,8 +133,11 @@ export async function fetchLeadgenDetails(
     return null;
   }
 
+  const token = config.meta.pageToken || config.meta.whatsappToken;
   const result = await graphFetch<{ field_data?: Array<{ name?: string; values?: string[] }> }>(
     leadgenId,
+    undefined,
+    token,
   );
 
   if (!result.ok) {

@@ -55,6 +55,8 @@ export async function queueTestOutreach(input: {
   const conversation = await findOrCreateConversation({
     phone,
     status: "awaiting_first_reply",
+    leadId: inserted.id,
+    source: "panel_test",
   });
   if (conversation) {
     await touchConversation(conversation.id, {

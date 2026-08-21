@@ -7,6 +7,7 @@ export type IrConversationRow = {
   phone: string;
   whatsapp_wa_id: string | null;
   status: ConversationStatus;
+  source?: string | null;
   last_inbound_at: string | null;
   last_outbound_at: string | null;
   template_status: string | null;
@@ -18,6 +19,9 @@ export type IrConversationRow = {
 export type IrConversationPanelRow = IrConversationRow & {
   last_message_text: string | null;
   last_message_at: string | null;
+  lead_name: string | null;
+  lead_source: string | null;
+  source: string | null;
 };
 
 function normalizePhoneKey(phone: string): string {
@@ -28,6 +32,8 @@ export async function findOrCreateConversation(input: {
   phone: string;
   waId?: string;
   status?: ConversationStatus;
+  leadId?: string;
+  source?: string;
 }): Promise<IrConversationRow | null> {
   const db = getSupabaseAdmin();
   if (!db) return null;
@@ -47,7 +53,24 @@ export async function findOrCreateConversation(input: {
   }
 
   if (existing) {
-    return existing as IrConversationRow;
+    const row = existing as IrConversationRow;
+    const patch: Record<string, string> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (input.leadId && !row.lead_id) patch.lead_id = input.leadId;
+    if (input.source) patch.source = input.source;
+    if (Object.keys(patch).length > 1) {
+      const { error: linkErr } = await db
+        .from("ir_conversations")
+        .update(patch)
+        .eq("id", row.id);
+      if (linkErr) {
+        console.error("[db/conversations] link existing", linkErr.message);
+      } else {
+        return { ...row, ...patch } as IrConversationRow;
+      }
+    }
+    return row;
   }
 
   const isOutreach = input.status === "awaiting_first_reply";
@@ -57,6 +80,8 @@ export async function findOrCreateConversation(input: {
       phone: digits,
       whatsapp_wa_id: input.waId ?? digits,
       status: input.status ?? "in_service",
+      lead_id: input.leadId ?? null,
+      source: input.source ?? "live",
       last_inbound_at: isOutreach ? null : new Date().toISOString(),
     })
     .select("*")
@@ -259,11 +284,6 @@ export async function listConversations(limit = 80): Promise<IrConversationPanel
 
   if (messagesError) {
     console.error("[db/conversations] list last messages", messagesError.message);
-    return conversations.map((row) => ({
-      ...row,
-      last_message_text: null,
-      last_message_at: null,
-    }));
   }
 
   const byConversation = new Map<
@@ -281,12 +301,88 @@ export async function listConversations(limit = 80): Promise<IrConversationPanel
     }
   }
 
+  const leadIds = [
+    ...new Set(
+      conversations
+        .map((row) => row.lead_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const phones = [
+    ...new Set(
+      conversations
+        .flatMap((row) => {
+          const digits = normalizePhoneKey(row.phone);
+          if (!digits) return [];
+          return [digits, `+${digits}`];
+        })
+        .filter(Boolean),
+    ),
+  ];
+
+  const leadsById = new Map<string, { name: string | null; source: string | null; phone: string | null }>();
+  const leadsByPhone = new Map<string, { name: string | null; source: string | null }>();
+
+  if (leadIds.length) {
+    const { data: leads, error: leadsError } = await db
+      .from("ir_leads")
+      .select("id, name, phone, source")
+      .in("id", leadIds);
+    if (leadsError) {
+      console.error("[db/conversations] list leads by id", leadsError.message);
+    } else {
+      for (const lead of leads ?? []) {
+        leadsById.set(String(lead.id), {
+          name: (lead.name as string | null) ?? null,
+          source: (lead.source as string | null) ?? null,
+          phone: (lead.phone as string | null) ?? null,
+        });
+      }
+    }
+  }
+
+  if (phones.length) {
+    const { data: leads, error: leadsError } = await db
+      .from("ir_leads")
+      .select("id, name, phone, source")
+      .in("phone", phones);
+    if (leadsError) {
+      console.error("[db/conversations] list leads by phone", leadsError.message);
+    } else {
+      for (const lead of leads ?? []) {
+        const packed = {
+          name: (lead.name as string | null) ?? null,
+          source: (lead.source as string | null) ?? null,
+        };
+        if (!leadsById.has(String(lead.id))) {
+          leadsById.set(String(lead.id), {
+            ...packed,
+            phone: (lead.phone as string | null) ?? null,
+          });
+        }
+        const phoneKey = normalizePhoneKey(String(lead.phone ?? ""));
+        if (phoneKey && !leadsByPhone.has(phoneKey)) {
+          leadsByPhone.set(phoneKey, packed);
+        }
+      }
+    }
+  }
+
   return conversations.map((row) => {
     const last = byConversation.get(row.id);
+    const linked = row.lead_id ? leadsById.get(row.lead_id) : undefined;
+    const byPhone = leadsByPhone.get(normalizePhoneKey(row.phone));
+    const lead = linked ?? byPhone;
+    const conversationSource =
+      ((row as IrConversationRow & { source?: string | null }).source ?? null) ||
+      null;
     return {
       ...row,
+      source: conversationSource,
       last_message_text: last?.text ?? (last ? `[${last.message_type ?? "mídia"}]` : null),
       last_message_at: last?.created_at ?? null,
+      lead_name: lead?.name ?? null,
+      lead_source: lead?.source ?? null,
     };
   });
 }

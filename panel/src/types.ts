@@ -11,6 +11,7 @@ export type LeadRow = {
   name: string | null;
   phone: string | null;
   status: string;
+  source?: string | null;
   created_at?: string;
 };
 
@@ -38,6 +39,8 @@ export type ConversationRow = {
   phone: string;
   status: string;
   source?: string | null;
+  lead_name?: string | null;
+  lead_source?: string | null;
   last_message_text?: string | null;
   last_message_at?: string | null;
   last_inbound_at?: string | null;

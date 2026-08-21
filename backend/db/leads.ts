@@ -11,6 +11,7 @@ export type IrLeadRow = {
   campaign_id: string | null;
   ad_id: string | null;
   status: LeadStatus;
+  source?: string | null;
   opt_in_whatsapp: boolean | null;
   raw_payload: unknown;
   created_at: string;

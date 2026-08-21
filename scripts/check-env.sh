@@ -57,6 +57,7 @@ for var in IR_META_APP_ID IR_META_APP_SECRET IR_META_PAGE_ID; do
   if has "$var"; then ok "$var"; else miss "$var"; fi
 done
 if has IR_META_FORM_IDS; then ok "IR_META_FORM_IDS"; else miss "IR_META_FORM_IDS (opcional até form existir)"; fi
+if has IR_META_PAGE_TOKEN; then ok "IR_META_PAGE_TOKEN (pull/detalhes leadgen)"; else miss "IR_META_PAGE_TOKEN (recomendado p/ pull e detalhes leadgen)"; fi
 
 echo
 echo "--- OpenAI (conversa) ---"

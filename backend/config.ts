@@ -56,6 +56,7 @@ export const config = {
     appSecret: process.env.IR_META_APP_SECRET ?? "",
     verifyToken: process.env.IR_META_VERIFY_TOKEN ?? "",
     pageId: process.env.IR_META_PAGE_ID ?? "",
+    pageToken: process.env.IR_META_PAGE_TOKEN ?? "",
     formIds: (process.env.IR_META_FORM_IDS ?? "")
       .split(",")
       .map((s) => s.trim())

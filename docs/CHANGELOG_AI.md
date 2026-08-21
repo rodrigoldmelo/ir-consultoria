@@ -1,5 +1,22 @@
 # CHANGELOG_AI — IR Consultoria
 
+## 2026-08-21 — Handoff Leadgen travado
+
+- `docs/HANDOFF_CODEX_LEADGEN_2026-08-21.md`: webhook Test OK + subscribed_apps OK, fills reais só na Central; bypass `meta-pull-leads` parado em token inválido na cola.
+- Lead Ads endurecido para produção: `IR_META_PAGE_TOKEN` separado do token WhatsApp, `fetchLeadgenDetails` prefere o Page Token com `leads_retrieval`, `meta-pull-leads` aceita token por env ou arquivo (`PAGE_TOKEN_FILE=/tmp/page_token.txt`), sanitiza aspas/quebras/JSON/URL e valida `me?fields=id,name` antes de puxar leads. O pull agora preserva `raw_payload.parsed_form` com nome, telefone, email, resposta médico(a) e raw fields, mantendo o contexto essencial do formulário antes de enfileirar o template `contato_inicial`.
+
+## 2026-08-20 — Script `meta:pull-leads` (bypass webhook)
+
+- `scripts/meta-pull-leads.ts`: com `PAGE_TOKEN`, lê leads do form na Graph e chama `ingestLead` + worker (desbloqueia quando Lead Center tem lead e o webhook Meta não entrega). Form ID observado na Central: `1444863843996760`.
+
+## 2026-08-20 — Script `meta:subscribe-leadgen` (Page → leadgen)
+
+- `scripts/meta-subscribe-leadgen.sh` + `npm run meta:subscribe-leadgen`: com `PAGE_TOKEN` na sessão SSH, faz `POST /{page-id}/subscribed_apps` e lista apps/leads (sem colar token no chat).
+
+## 2026-08-20 — Dashboard full-width, nomes e origem META/Orgânico
+
+- Dashboard deixa de ficar “cortado” (`max-width: 1280px` removido). Conversas e dashboard mostram nome do lead (join por `lead_id`/telefone); Origem vira **META** (anúncio) ou **Orgânico** (teste/inbound/live), com **Importação** para CSV. Mobile: grid do dashboard em 1 coluna, lista/scroll e tab bar ajustados. Template worker passa a vincular `lead_id` na conversa.
+
 ## 2026-08-20 — Dashboard Lis-like e scroll da conversa
 
 - Dashboard do painel IR redesenhado no padrão operacional da Lis: KPIs no topo, gráfico de conversas por dia, lista de qualificados recentes, distribuição de status, funil IR e sinais de operação/integrações, sem métricas de reunião/agenda. Ao abrir uma conversa, a thread agora rola automaticamente para a última mensagem, mantendo o composer fixo no rodapé.

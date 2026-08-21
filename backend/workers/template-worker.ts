@@ -89,6 +89,11 @@ async function processLead(lead: IrLeadRow): Promise<void> {
     const conversation = await findOrCreateConversation({
       phone: lead.phone,
       status: "awaiting_first_reply",
+      leadId: lead.id,
+      source:
+        lead.source?.includes("meta") || lead.source === "meta_lead_ads"
+          ? "meta"
+          : lead.source ?? "live",
     });
     if (conversation) {
       conversationId = conversation.id;

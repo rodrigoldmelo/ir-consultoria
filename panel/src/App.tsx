@@ -203,8 +203,12 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       .filter((conversation) => {
         if (!q) return true;
         return (
+          (conversation.lead_name ?? "").toLowerCase().includes(q) ||
           conversation.phone.includes(q) ||
           (conversation.source ?? "").toLowerCase().includes(q) ||
+          sourceLabel(conversation.source, conversation.lead_source)
+            .toLowerCase()
+            .includes(q) ||
           conversation.status.toLowerCase().includes(q)
         );
       })
@@ -805,8 +809,11 @@ function Dashboard({
             {qualifiedRecent.map((conversation) => (
               <div key={conversation.id} className="dashboard-list-row">
                 <div>
-                  <strong>{conversation.phone}</strong>
-                  <span>Restituição INSS · {relativeTime(conversation.last_message_at ?? conversation.updated_at)}</span>
+                  <strong>{leadDisplayName(conversation)}</strong>
+                  <span>
+                    {formatPhoneDisplay(conversation.phone)} ·{" "}
+                    {relativeTime(conversation.last_message_at ?? conversation.updated_at)}
+                  </span>
                 </div>
                 <Badge tone={statusTone(conversation.status)}>
                   {statusLabel(conversation.status)}
@@ -960,16 +967,21 @@ function ConversationsPage({
           >
             <ArrowLeft className="icon" />
           </button>
-          <div className="detail-avatar">{getInitials(selectedConversation.phone)}</div>
+          <div className="detail-avatar">
+            {getInitials(leadDisplayName(selectedConversation))}
+          </div>
           <div className="detail-title">
             <div>
-              <h1>{selectedConversation.phone}</h1>
+              <h1>{leadDisplayName(selectedConversation)}</h1>
               {aiPaused ? <span className="paused-pill">IA pausada</span> : <Badge>IA ativa</Badge>}
             </div>
             <p className="mono">
-              {selectedConversation.phone}
+              {formatPhoneDisplay(selectedConversation.phone)}
               <span> · </span>
-              {selectedConversation.source ?? "WhatsApp"}
+              {sourceLabel(
+                selectedConversation.source,
+                selectedConversation.lead_source,
+              )}
             </p>
           </div>
           <Badge tone={statusTone(selectedConversation.status)}>
@@ -1156,14 +1168,14 @@ function ConversationsPage({
                       <span className={isRecent(conversation) ? "activity-dot on" : "activity-dot"} />
                       <div>
                         <p>
-                          {conversation.phone}
+                          {leadDisplayName(conversation)}
                           {paused ? <span className="paused-pill">IA pausada</span> : null}
                         </p>
-                        <span>—</span>
+                        <span>{formatPhoneDisplay(conversation.phone)}</span>
                       </div>
                     </div>
                   </td>
-                  <td className="mono">{conversation.phone}</td>
+                  <td className="mono">{formatPhoneDisplay(conversation.phone)}</td>
                   <td>
                     <Badge tone={statusTone(conversation.status)}>
                       {statusLabel(conversation.status)}
@@ -1183,7 +1195,17 @@ function ConversationsPage({
                     </span>
                   </td>
                   <td>
-                    <span className="source-pill">{conversation.source ?? "WhatsApp"}</span>
+                    {(() => {
+                      const label = sourceLabel(
+                        conversation.source,
+                        conversation.lead_source,
+                      );
+                      return (
+                        <span className={`source-pill tone-${sourceTone(label)}`}>
+                          {label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="table-action">
                     <button
@@ -1216,19 +1238,27 @@ function LeadsPage({ leads }: { leads: LeadRow[] }) {
     <div className="page-stack">
       <PanelCard title="Leads Meta / formulário" badge={String(leads.length)} icon={Users}>
         <DataTable
-          columns={["Nome", "Telefone", "Status", "Criado"]}
+          columns={["Nome", "Telefone", "Origem", "Status", "Criado"]}
           empty="Nenhum lead ainda. Use o webhook Meta Lead Ads ou o teste de primeiro contato."
         >
-          {leads.map((lead) => (
-            <tr key={lead.id}>
-              <td>{lead.name ?? "Sem nome"}</td>
-              <td className="mono">{lead.phone ?? "--"}</td>
-              <td>
-                <Badge tone={statusTone(lead.status)}>{statusLabel(lead.status)}</Badge>
-              </td>
-              <td className="mono">{formatDate(lead.created_at)}</td>
-            </tr>
-          ))}
+          {leads.map((lead) => {
+            const origin = sourceLabel(lead.source, lead.source);
+            return (
+              <tr key={lead.id}>
+                <td>{lead.name?.trim() || "Sem nome"}</td>
+                <td className="mono">{formatPhoneDisplay(lead.phone)}</td>
+                <td>
+                  <span className={`source-pill tone-${sourceTone(origin)}`}>
+                    {origin}
+                  </span>
+                </td>
+                <td>
+                  <Badge tone={statusTone(lead.status)}>{statusLabel(lead.status)}</Badge>
+                </td>
+                <td className="mono">{formatDate(lead.created_at)}</td>
+              </tr>
+            );
+          })}
         </DataTable>
       </PanelCard>
     </div>
@@ -1671,7 +1701,9 @@ function CaseSidePanel({
           <MessageSquare className="icon" />
           <div>
             <span>Origem</span>
-            <p>{conversation.source ?? "WhatsApp"}</p>
+            <p>
+              {sourceLabel(conversation.source, conversation.lead_source)}
+            </p>
           </div>
         </div>
         <div className="side-row">
@@ -1855,6 +1887,52 @@ function pageDescription(page: PanelPage) {
   return descriptions[page];
 }
 
+function leadDisplayName(conversation: ConversationRow): string {
+  const name = conversation.lead_name?.trim();
+  if (name) return name;
+  return formatPhoneDisplay(conversation.phone);
+}
+
+function formatPhoneDisplay(phone?: string | null): string {
+  if (!phone) return "Sem telefone";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length >= 12 && digits.startsWith("55")) {
+    const ddd = digits.slice(2, 4);
+    const rest = digits.slice(4);
+    if (rest.length === 9) {
+      return `+55 (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    }
+    if (rest.length === 8) {
+      return `+55 (${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+    }
+  }
+  return phone;
+}
+
+/** META = Lead Ads / anúncio. Orgânico = inbound, teste, live. */
+function sourceLabel(
+  source?: string | null,
+  leadSource?: string | null,
+): string {
+  const raw = `${leadSource ?? ""} ${source ?? ""}`.toLowerCase();
+  if (
+    raw.includes("meta_lead") ||
+    raw.includes("lead_ads") ||
+    raw.includes("leadgen") ||
+    /(^|[\s_])meta([\s_]|$)/.test(raw)
+  ) {
+    return "META";
+  }
+  if (raw.includes("import")) return "Importação";
+  return "Orgânico";
+}
+
+function sourceTone(label: string): StatusTone {
+  if (label === "META") return "success";
+  if (label === "Importação") return "warning";
+  return "muted";
+}
+
 function statusLabel(status: string) {
   return STATUS_LABELS[status] ?? status.replaceAll("_", " ");
 }
@@ -1932,9 +2010,18 @@ function relativeTime(value?: string | null) {
 }
 
 function getInitials(value?: string | null) {
-  const clean = (value ?? "IR").replace(/\D/g, "");
-  if (!clean) return "IR";
-  return clean.slice(-2).toUpperCase();
+  const text = (value ?? "").trim();
+  if (!text) return "IR";
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length >= 2 && /[A-Za-zÀ-ÿ]/.test(words[0])) {
+    return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  }
+  if (/[A-Za-zÀ-ÿ]/.test(text)) {
+    return text.slice(0, 2).toUpperCase();
+  }
+  const digits = text.replace(/\D/g, "");
+  if (!digits) return "IR";
+  return digits.slice(-2).toUpperCase();
 }
 
 function isRecent(conversation: ConversationRow) {

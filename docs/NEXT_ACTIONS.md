@@ -7,15 +7,23 @@ Restituição INSS gera **desconfiança** (medo de golpe; serviço pouco conheci
 
 ## Agora (ordem recomendada)
 
+### Bloqueio ativo (2026-08-21) — Lead Ads → sistema
+
+Ver handoff: `docs/HANDOFF_CODEX_LEADGEN_2026-08-21.md`.
+
+- Webhook Test OK; fills reais na Central **sem** POST no pm2.
+- Bypass: `npx tsx scripts/meta-pull-leads.ts --form 1444863843996760` (Page Token limpo na VPS).
+- Form ID atual na Central: `1444863843996760`.
+
 ### Você (Meta) — inbound WA em produção OK (2026-08-19)
 
 Webhook + `messages` + Phone number ID corretos: “Oi” no número da IR recebe resposta.
 
-1. **Código local commitado** (`7181a81` + handoff `555d3ac`). **Push pendente:** ainda não há `git remote origin` (GitHub do IR ainda não existe). Depois do remote: sync VPS + `panel:build` + restart só `ir-consultoria-api`. Teste WhatsApp: Configuração → Enviar primeiro contato → **Sim** (template `contato_inicial`).
-2. Meta: criar `ir_confianca` e `ir_explica_inss` (textos em `docs/META_OUTREACH.md`). Quando aprovados: env na VPS + `IR_FOLLOW_UP_WORKER_ENABLED=true`.
-3. Opcional: `IR_INWINDOW_NUDGE_ENABLED=true` (lembrete em texto se o lead sumir dentro das 24h).
-4. Lead Ads: webhook `https://ir.meuanalistacrm.app/api/ir/webhooks/meta-leads` + campo `leadgen` + formulário com opt-in WhatsApp. Painel no mesmo domínio após `npm run panel:build`.
-5. Critérios Fase 0 + Advbox
+1. **Subir estes ajustes de painel** (dashboard full-width, nomes, origem META/Orgânico): sync VPS + `npm run panel:build` + `pm2 restart ir-consultoria-api --update-env`. Confirmar `IR_WHATSAPP_TEMPLATE_INITIAL=contato_inicial` no `.env` da VPS.
+2. **Antes de anúncio pago:** Instant Form + opt-in WhatsApp; webhook Lead Ads `https://ir.meuanalistacrm.app/api/ir/webhooks/meta-leads` com `leadgen`; `IR_META_PAGE_ID` (+ `IR_META_FORM_IDS`) na VPS; template `contato_inicial` aprovado; teste com 1 lead real do formulário.
+3. Meta: criar `ir_confianca` e `ir_explica_inss` (textos em `docs/META_OUTREACH.md`). Quando aprovados: env na VPS + `IR_FOLLOW_UP_WORKER_ENABLED=true`.
+4. Opcional: `IR_INWINDOW_NUDGE_ENABLED=true`.
+5. Critérios Fase 0 + Advbox (não bloqueiam o 1º contato automático).
 
 VPS: não `pm2 kill`, não `restart all`. Lis = `:9000` / `vec`. IR = `:3010` / `ir.`.
 
