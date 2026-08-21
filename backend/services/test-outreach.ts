@@ -5,6 +5,7 @@ import {
   touchConversation,
 } from "../db/conversations.js";
 import { insertLead } from "../db/leads.js";
+import { getLeadById, updateLeadStatusById } from "../db/leads.js";
 import { wakeTemplateWorker } from "../workers/template-worker.js";
 import { cancelDripForPhone } from "./drip.js";
 import { sendWhatsAppTemplate } from "./meta-graph.js";
@@ -73,6 +74,53 @@ export async function queueTestOutreach(input: {
     phone,
     metaLeadgenId,
     leadId: inserted.id,
+  };
+}
+
+export async function queueLeadInitialOutreach(input: {
+  leadId: string;
+}): Promise<
+  | { ok: true; phone: string; metaLeadgenId: string; leadId: string }
+  | { ok: false; error: string }
+> {
+  if (!config.meta.templateInitial) {
+    return { ok: false, error: "missing_IR_WHATSAPP_TEMPLATE_INITIAL" };
+  }
+
+  const lead = await getLeadById(input.leadId);
+  if (!lead) {
+    return { ok: false, error: "lead_not_found" };
+  }
+
+  const phone = normalizePhoneE164(lead.phone);
+  if (!phone) {
+    return { ok: false, error: "invalid_phone" };
+  }
+
+  await cancelDripForPhone(phone, "manual_initial_outreach");
+  await updateLeadStatusById(lead.id, "template_queued");
+
+  const conversation = await findOrCreateConversation({
+    phone,
+    status: "awaiting_first_reply",
+    leadId: lead.id,
+    source: lead.source?.includes("meta") ? "meta" : lead.source ?? "import",
+  });
+  if (conversation) {
+    await touchConversation(conversation.id, {
+      status: "awaiting_first_reply",
+      clearInbound: true,
+      templateStatus: "queued_manual",
+    });
+  }
+
+  wakeTemplateWorker(lead.meta_leadgen_id);
+
+  return {
+    ok: true,
+    phone,
+    metaLeadgenId: lead.meta_leadgen_id,
+    leadId: lead.id,
   };
 }
 

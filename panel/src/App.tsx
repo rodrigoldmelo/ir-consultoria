@@ -54,6 +54,7 @@ import {
   runReheat,
   sendHumanMedia,
   sendHumanReply,
+  sendLeadInitialOutreach,
   sendTestDrip,
   sendTestOutreach,
   takeoverConversation,
@@ -182,6 +183,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   const [replyBusy, setReplyBusy] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [decideBusyId, setDecideBusyId] = useState<string | null>(null);
+  const [leadOutreachBusyId, setLeadOutreachBusyId] = useState<string | null>(null);
   const [testPhone, setTestPhone] = useState("41984837507");
   const [testName, setTestName] = useState("Rodrigo");
   const [testBusy, setTestBusy] = useState<"outreach" | "trust" | "explain" | null>(
@@ -544,6 +546,24 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  async function onLeadInitialOutreach(lead: LeadRow) {
+    if (!lead.id) return;
+    setLeadOutreachBusyId(lead.id);
+    setActionMsg("");
+    setError("");
+    try {
+      const result = await sendLeadInitialOutreach(lead.id);
+      setActionMsg(
+        `Contato inicial enfileirado para ${formatPhoneDisplay(result.phone)}.`,
+      );
+      await refresh();
+    } catch (err) {
+      setError(toErrorMessage(err));
+    } finally {
+      setLeadOutreachBusyId(null);
+    }
+  }
+
   async function onTestDrip(which: "trust" | "explain") {
     setTestBusy(which);
     setActionMsg("");
@@ -637,7 +657,13 @@ function Panel({ onLogout }: { onLogout: () => void }) {
           />
         ) : null}
 
-        {page === "leads" ? <LeadsPage leads={leads} /> : null}
+        {page === "leads" ? (
+          <LeadsPage
+            leads={leads}
+            busyLeadId={leadOutreachBusyId}
+            onSendInitial={(lead) => void onLeadInitialOutreach(lead)}
+          />
+        ) : null}
 
         {page === "reaquecer" ? (
           <ReheatPage
@@ -1342,16 +1368,27 @@ function ConversationsPage({
   );
 }
 
-function LeadsPage({ leads }: { leads: LeadRow[] }) {
+function LeadsPage({
+  leads,
+  busyLeadId,
+  onSendInitial,
+}: {
+  leads: LeadRow[];
+  busyLeadId: string | null;
+  onSendInitial: (lead: LeadRow) => void;
+}) {
   return (
     <div className="page-stack">
       <PanelCard title="Leads Meta / formulário" badge={String(leads.length)} icon={Users}>
         <DataTable
-          columns={["Nome", "Telefone", "Origem", "Status", "Criado"]}
+          columns={["Nome", "Telefone", "Origem", "Status", "Criado", "Ação"]}
           empty="Nenhum lead ainda. Use o webhook Meta Lead Ads ou o teste de primeiro contato."
         >
           {leads.map((lead) => {
             const origin = sourceLabel(lead.source, lead.source);
+            const busy = busyLeadId === lead.id;
+            const queued =
+              lead.status === "template_queued" || lead.status === "template_sending";
             return (
               <tr key={lead.id}>
                 <td>{lead.name?.trim() || "Sem nome"}</td>
@@ -1365,6 +1402,17 @@ function LeadsPage({ leads }: { leads: LeadRow[] }) {
                   <Badge tone={statusTone(lead.status)}>{statusLabel(lead.status)}</Badge>
                 </td>
                 <td className="mono">{formatDate(lead.created_at)}</td>
+                <td className="actions-cell">
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    disabled={busy || queued || !lead.phone}
+                    onClick={() => onSendInitial(lead)}
+                  >
+                    <Send className="icon" />
+                    {busy ? "Enfileirando..." : "Enviar contato"}
+                  </button>
+                </td>
               </tr>
             );
           })}

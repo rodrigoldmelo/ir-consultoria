@@ -244,6 +244,21 @@ export async function sendTestOutreach(phone: string, name: string) {
   return body as { ok: true; phone: string; metaLeadgenId: string };
 }
 
+export async function sendLeadInitialOutreach(leadId: string) {
+  const res = await panelFetch(`/api/ir/panel/leads/${leadId}/outreach`, {
+    method: "POST",
+    body: "{}",
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `lead_outreach_${res.status}`);
+  return body as {
+    ok: true;
+    phone: string;
+    metaLeadgenId: string;
+    leadId: string;
+  };
+}
+
 export async function sendTestDrip(
   phone: string,
   name: string,

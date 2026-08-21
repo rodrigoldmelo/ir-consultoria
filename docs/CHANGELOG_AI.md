@@ -2,6 +2,8 @@
 
 ## 2026-08-21 — Handoff Leadgen travado
 
+- Adicionado reset administrativo por telefone (`npm run reset:test-conversation -- --phone ...`) para limpar conversas/mensagens/casos/documentos/jobs de teste sem apagar o lead por padrão. O número `+5541987277528` foi resetado com sucesso: 2 conversas e 21 mensagens removidas, lead mantido.
+- Aba Leads ganhou ação “Enviar contato”, que reenfileira o template inicial aprovado para um lead importado/manual usando o mesmo worker de templates do Lead Ads, mantendo histórico e estado do painel consistentes.
 - Substituído o PDF operacional de documentos por um guia único CNIS + DIRF: o agente agora envia `assets/passo-a-passo-cnis-dirfs-2026.pdf` com a legenda aprovada (“No passo a passo está tudo detalhado...”); prompts e confirmações deixam de prometer passo separado de DIRF.
 - `docs/HANDOFF_CODEX_LEADGEN_2026-08-21.md`: webhook Test OK + subscribed_apps OK, fills reais só na Central; bypass `meta-pull-leads` parado em token inválido na cola.
 - Lead Ads endurecido para produção: `IR_META_PAGE_TOKEN` separado do token WhatsApp, `fetchLeadgenDetails` prefere o Page Token com `leads_retrieval`, `meta-pull-leads` aceita token por env ou arquivo (`PAGE_TOKEN_FILE=/tmp/page_token.txt`), sanitiza aspas/quebras/JSON/URL e valida `me?fields=id,name` antes de puxar leads. O pull agora preserva `raw_payload.parsed_form` com nome, telefone, email, resposta médico(a) e raw fields, mantendo o contexto essencial do formulário antes de enfileirar o template `contato_inicial`.
