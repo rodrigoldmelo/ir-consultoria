@@ -11,6 +11,7 @@
 - Painel Conversas ganhou controles operacionais mais próximos da Lis: responder uma mensagem usando `context.message_id` quando houver `wamid`, apagar mensagens enviadas do painel (remoção local/banco, não “desenviar” do WhatsApp do lead) e botões separados para enviar áudio, imagem, vídeo e arquivo durante takeover humano.
 - A coluna “Dados do lead” do inbox passou a exibir os dados capturados no formulário Meta quando disponíveis: nome, telefone, email e resposta “médico(a)”, além de origem e datas. O backend enriquece `/api/ir/panel/conversations` a partir de `ir_leads.raw_payload.parsed_form`, sem expor secrets ou depender da Lis.
 - Corrigido `npm run fix:cnis-doc`: o script agora aceita as envs reais da IR (`IR_SUPABASE_URL` / `IR_SUPABASE_SERVICE_ROLE_KEY`) e usa a coluna `phone` de `ir_conversations`, permitindo reclassificar o CNIS antigo na VPS sem export manual de secrets.
+- Ajustado o checklist documental para refletir o fluxo real: CNIS primeiro e, depois, DIRF/rendimentos como pendência de precisão. O script `fix:cnis-doc` usa `ws` no Node 20 da VPS, reclassifica o documento antigo como CNIS e deixa a conversa aguardando DIRF/rendimentos, não mais “faltando CNIS”.
 
 ## 2026-08-20 — Script `meta:pull-leads` (bypass webhook)
 

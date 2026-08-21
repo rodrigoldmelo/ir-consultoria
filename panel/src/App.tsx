@@ -103,7 +103,7 @@ const STATUS_LABELS: Record<string, string> = {
   all: "Todos",
   awaiting_first_reply: "Aguardando aceite",
   qualifying: "Qualificação",
-  waiting_documents: "Aguardando CNIS",
+  waiting_documents: "Aguardando docs",
   documents_partial: "Docs parciais",
   documents_complete: "Docs completos",
   waiting_human: "Requer atenção",
@@ -1897,7 +1897,7 @@ function CaseSidePanel({
             >
               <FileText className="icon" />
               <span>
-                <strong>{document.document_type ?? "Documento"}</strong>
+                <strong>{documentTypeLabel(document.document_type)}</strong>
                 <em>
                   {document.mime_type ?? "arquivo"}
                   {document.size_bytes
@@ -1910,7 +1910,9 @@ function CaseSidePanel({
           {!documents.length ? <EmptyState text="Nenhum documento recebido." compact /> : null}
         </div>
         {missingDocs.length > 0 ? (
-          <p className="missing-docs">Faltam: {missingDocs.join(", ")}</p>
+          <p className="missing-docs">
+            Faltam: {missingDocs.map(documentTypeLabel).join(", ")}
+          </p>
         ) : null}
       </section>
 
@@ -2109,6 +2111,21 @@ function doctorAnswerLabel(conversation: ConversationRow): string {
   if (conversation.lead_is_doctor === true) return "Sim";
   if (conversation.lead_is_doctor === false) return "Não";
   return "Não informado";
+}
+
+function documentTypeLabel(type?: string | null): string {
+  const labels: Record<string, string> = {
+    cnis: "CNIS",
+    dirf_income: "DIRF / rendimentos",
+    inss_statement: "Extrato INSS",
+    identity: "Identidade",
+    address_proof: "Comprovante de residência",
+    income_tax: "Imposto de renda",
+    payslip: "Holerite",
+    contract: "Contrato",
+    other: "Documento",
+  };
+  return type ? labels[type] ?? type : "Documento";
 }
 
 function formatPhoneDisplay(phone?: string | null): string {

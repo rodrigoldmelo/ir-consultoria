@@ -1,5 +1,6 @@
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 
 loadDotenv({ path: ".env.local" });
 loadDotenv();
@@ -43,6 +44,7 @@ if (!url || !key) {
 
 const db = createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
+  realtime: { transport: ws as never },
 });
 
 const { data: conversations, error: convError } = await db
@@ -101,8 +103,8 @@ if (updateDocError) throw new Error(updateDocError.message);
 const { error: updateCaseError } = await db
   .from("ir_cases")
   .update({
-    status: "documents_complete",
-    missing_information: { missing_documents: [] },
+    status: "documents_partial",
+    missing_information: { missing_documents: ["dirf_income"] },
     updated_at: now,
   })
   .eq("id", irCase.id);
@@ -110,7 +112,7 @@ if (updateCaseError) throw new Error(updateCaseError.message);
 
 const { error: updateConvError } = await db
   .from("ir_conversations")
-  .update({ status: "waiting_human", updated_at: now })
+  .update({ status: "waiting_documents", updated_at: now })
   .eq("id", conversation.id);
 if (updateConvError) throw new Error(updateConvError.message);
 
@@ -123,7 +125,8 @@ console.log(
       document_id: document.id,
       previous_document_type: document.document_type,
       new_document_type: "cnis",
-      conversation_status: "waiting_human",
+      missing_documents: ["dirf_income"],
+      conversation_status: "waiting_documents",
     },
     null,
     2,

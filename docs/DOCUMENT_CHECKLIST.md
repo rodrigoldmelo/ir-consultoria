@@ -34,7 +34,7 @@
 4. Atualiza pendências em `ir_cases.missing_information`.
 5. Obrigatórios completos → `documents_complete` + `waiting_human` (fila Advbox depende da integração).
 
-Tipos obrigatórios no código: `cnis` (triagem). DIRF = apuração precisa, não bloqueia a triagem.
+Tipos obrigatórios no código: `cnis` primeiro e `dirf_income` em seguida para apuração mais precisa.
 (`REQUIRED_DOCUMENT_TYPES` em `backend/services/documents.ts`.)
 Classificação hoje é **palpite pela legenda/nome** (`classification_status=auto_guess`); revisão humana obrigatória.
 

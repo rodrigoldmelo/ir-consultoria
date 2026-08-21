@@ -309,10 +309,7 @@ export async function handleInboundWhatsApp(input: {
       mediaId: input.mediaId,
       caption: rawText || undefined,
       filename: input.mediaFilename,
-      expectedDocumentType:
-        conversation.status === "waiting_documents"
-          ? "cnis"
-          : null,
+      expectedDocumentType: null,
     });
 
     if (stored) {
