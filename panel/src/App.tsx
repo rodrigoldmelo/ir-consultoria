@@ -52,6 +52,7 @@ import {
   openDocument,
   resumeConversation,
   runReheat,
+  sendConversationInitialOutreach,
   sendHumanMedia,
   sendHumanReply,
   sendLeadInitialOutreach,
@@ -184,6 +185,9 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   const [mediaBusy, setMediaBusy] = useState(false);
   const [decideBusyId, setDecideBusyId] = useState<string | null>(null);
   const [leadOutreachBusyId, setLeadOutreachBusyId] = useState<string | null>(null);
+  const [conversationOutreachBusyId, setConversationOutreachBusyId] = useState<string | null>(
+    null,
+  );
   const [testPhone, setTestPhone] = useState("41984837507");
   const [testName, setTestName] = useState("Rodrigo");
   const [testBusy, setTestBusy] = useState<"outreach" | "trust" | "explain" | null>(
@@ -564,6 +568,26 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  async function onConversationInitialOutreach(conversation: ConversationRow) {
+    setConversationOutreachBusyId(conversation.id);
+    setActionMsg("");
+    setError("");
+    try {
+      const result = await sendConversationInitialOutreach(conversation.id);
+      setActionMsg(
+        `Contato inicial enfileirado para ${formatPhoneDisplay(result.phone)}.`,
+      );
+      await refresh();
+      if (selectedConvId) {
+        await refreshConversationDetail(selectedConvId);
+      }
+    } catch (err) {
+      setError(toErrorMessage(err));
+    } finally {
+      setConversationOutreachBusyId(null);
+    }
+  }
+
   async function onTestDrip(which: "trust" | "explain") {
     setTestBusy(which);
     setActionMsg("");
@@ -642,9 +666,13 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             replyToMessage={replyToMessage}
             replyBusy={replyBusy}
             mediaBusy={mediaBusy}
+            conversationOutreachBusyId={conversationOutreachBusyId}
             onFilter={setConversationFilter}
             onSearch={setConversationSearch}
             onSelect={setSelectedConvId}
+            onConversationInitialOutreach={(conversation) =>
+              void onConversationInitialOutreach(conversation)
+            }
             onTakeover={() => void onTakeover()}
             onResume={() => void onResume()}
             onOpenDocument={(id) => void onOpenDocument(id)}
@@ -995,9 +1023,11 @@ function ConversationsPage({
   replyToMessage,
   replyBusy,
   mediaBusy,
+  conversationOutreachBusyId,
   onFilter,
   onSearch,
   onSelect,
+  onConversationInitialOutreach,
   onTakeover,
   onResume,
   onOpenDocument,
@@ -1022,9 +1052,11 @@ function ConversationsPage({
   replyToMessage: MessageRow | null;
   replyBusy: boolean;
   mediaBusy: boolean;
+  conversationOutreachBusyId: string | null;
   onFilter: (filter: (typeof IR_STATUSES)[number]) => void;
   onSearch: (search: string) => void;
   onSelect: (id: string) => void;
+  onConversationInitialOutreach: (conversation: ConversationRow) => void;
   onTakeover: () => void;
   onResume: () => void;
   onOpenDocument: (id: string) => void;
@@ -1237,7 +1269,9 @@ function ConversationsPage({
             messages={messages}
             documents={documents}
             missingDocs={missingDocs}
+            outreachBusy={conversationOutreachBusyId === selectedConversation.id}
             onOpenDocument={onOpenDocument}
+            onSendInitialOutreach={() => onConversationInitialOutreach(selectedConversation)}
             onTakeover={onTakeover}
             onResume={onResume}
           />
@@ -1834,7 +1868,9 @@ function CaseSidePanel({
   messages,
   documents,
   missingDocs,
+  outreachBusy,
   onOpenDocument,
+  onSendInitialOutreach,
   onTakeover,
   onResume,
 }: {
@@ -1842,13 +1878,26 @@ function CaseSidePanel({
   messages: MessageRow[];
   documents: DocumentRow[];
   missingDocs: string[];
+  outreachBusy: boolean;
   onOpenDocument: (id: string) => void;
+  onSendInitialOutreach: () => void;
   onTakeover: () => void;
   onResume: () => void;
 }) {
   const aiPaused = conversation.status === "waiting_human";
   const inboundCount = messages.filter((message) => message.role === "user").length;
   const outboundCount = messages.length - inboundCount;
+  const templateStatus = conversation.template_status ?? "";
+  const templateAlreadyQueued = ["queued_manual", "queued_test", "sending"].includes(
+    templateStatus,
+  );
+  const templateAlreadySent = templateStatus === "sent";
+  const canSendInitialTemplate =
+    !messages.length &&
+    !templateAlreadyQueued &&
+    !templateAlreadySent &&
+    conversation.status !== "closed" &&
+    Boolean(conversation.phone || conversation.lead_phone);
 
   return (
     <aside className="case-panel lis-side-panel">
@@ -1967,8 +2016,20 @@ function CaseSidePanel({
       <section>
         <h3>Templates WhatsApp</h3>
         <p>Fora da janela de 24h só template aprovado pela Meta chega.</p>
-        <button type="button" className="btn btn-outline side-full" disabled>
-          Reativar janela 24h
+        <button
+          type="button"
+          className="btn btn-outline side-full"
+          disabled={outreachBusy || !canSendInitialTemplate}
+          onClick={onSendInitialOutreach}
+        >
+          <Send className="icon" />
+          {outreachBusy
+            ? "Enfileirando..."
+            : templateAlreadyQueued
+              ? "Contato enfileirado"
+              : templateAlreadySent
+                ? "Contato já enviado"
+                : "Enviar primeiro contato"}
         </button>
       </section>
 

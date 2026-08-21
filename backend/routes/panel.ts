@@ -26,6 +26,7 @@ import {
 import { isOpenAiConfigured } from "../services/openai-agent.js";
 import { isSupabaseConfigured } from "../services/supabase.js";
 import {
+  queueConversationInitialOutreach,
   queueLeadInitialOutreach,
   queueTestOutreach,
   sendTestDripTemplate,
@@ -97,6 +98,22 @@ router.post("/leads/:id/outreach", async (req, res) => {
   } catch (err) {
     console.error("[panel/lead-outreach]", err);
     res.status(500).json({ error: "lead_outreach_failed" });
+  }
+});
+
+router.post("/conversations/:id/outreach", async (req, res) => {
+  try {
+    const result = await queueConversationInitialOutreach({
+      conversationId: String(req.params.id ?? ""),
+    });
+    if (!result.ok) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("[panel/conversation-outreach]", err);
+    res.status(500).json({ error: "conversation_outreach_failed" });
   }
 });
 

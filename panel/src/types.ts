@@ -36,9 +36,12 @@ export type ImportRow = {
 
 export type ConversationRow = {
   id: string;
+  lead_id?: string | null;
   phone: string;
   status: string;
   source?: string | null;
+  template_status?: string | null;
+  template_name?: string | null;
   lead_name?: string | null;
   lead_phone?: string | null;
   lead_email?: string | null;

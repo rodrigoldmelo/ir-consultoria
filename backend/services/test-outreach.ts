@@ -1,11 +1,13 @@
 import { config } from "../config.js";
 import {
   findOrCreateConversation,
+  getConversationById,
   insertMessage,
+  setConversationLead,
   touchConversation,
 } from "../db/conversations.js";
 import { insertLead } from "../db/leads.js";
-import { getLeadById, updateLeadStatusById } from "../db/leads.js";
+import { findLeadByPhone, getLeadById, updateLeadStatusById } from "../db/leads.js";
 import { wakeTemplateWorker } from "../workers/template-worker.js";
 import { cancelDripForPhone } from "./drip.js";
 import { sendWhatsAppTemplate } from "./meta-graph.js";
@@ -113,6 +115,70 @@ export async function queueLeadInitialOutreach(input: {
       templateStatus: "queued_manual",
     });
   }
+
+  wakeTemplateWorker(lead.meta_leadgen_id);
+
+  return {
+    ok: true,
+    phone,
+    metaLeadgenId: lead.meta_leadgen_id,
+    leadId: lead.id,
+  };
+}
+
+export async function queueConversationInitialOutreach(input: {
+  conversationId: string;
+}): Promise<
+  | { ok: true; phone: string; metaLeadgenId: string; leadId: string }
+  | { ok: false; error: string }
+> {
+  if (!config.meta.templateInitial) {
+    return { ok: false, error: "missing_IR_WHATSAPP_TEMPLATE_INITIAL" };
+  }
+
+  const conversation = await getConversationById(input.conversationId);
+  if (!conversation) {
+    return { ok: false, error: "conversation_not_found" };
+  }
+
+  const phone = normalizePhoneE164(conversation.phone);
+  if (!phone) {
+    return { ok: false, error: "invalid_phone" };
+  }
+
+  let lead = conversation.lead_id
+    ? await getLeadById(conversation.lead_id)
+    : await findLeadByPhone(phone);
+
+  if (!lead) {
+    lead = await insertLead({
+      metaLeadgenId: `manual-conversation-${conversation.id}`,
+      phone,
+      name: undefined,
+      optInWhatsapp: true,
+      source: "panel_manual",
+      rawPayload: {
+        source: "panel_manual",
+        conversation_id: conversation.id,
+      },
+      status: "template_queued",
+    });
+  }
+
+  if (!lead) {
+    return { ok: false, error: "lead_prepare_failed" };
+  }
+
+  await cancelDripForPhone(phone, "manual_conversation_initial_outreach");
+  await updateLeadStatusById(lead.id, "template_queued");
+  if (conversation.lead_id !== lead.id) {
+    await setConversationLead(conversation.id, lead.id);
+  }
+  await touchConversation(conversation.id, {
+    status: "awaiting_first_reply",
+    clearInbound: true,
+    templateStatus: "queued_manual",
+  });
 
   wakeTemplateWorker(lead.meta_leadgen_id);
 

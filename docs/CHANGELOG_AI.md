@@ -1,5 +1,9 @@
 # CHANGELOG_AI — IR Consultoria
 
+## 2026-08-21 — Contato inicial pelo detalhe da conversa
+
+- Adicionado `POST /api/ir/panel/conversations/:id/outreach` para enfileirar o template inicial aprovado (`contato_inicial`) a partir do detalhe da conversa. O backend reaproveita o lead vinculado, tenta localizar por telefone e, se necessário, cria um lead operacional mínimo `panel_manual` para o worker atual disparar com auditoria. A coluna lateral de Conversas ganhou o botão **Enviar primeiro contato**, habilitado para conversas sem histórico e bloqueado quando o template já foi enviado/enfileirado.
+
 ## 2026-08-21 — Handoff Leadgen travado
 
 - Adicionado reset administrativo por telefone (`npm run reset:test-conversation -- --phone ...`) para limpar conversas/mensagens/casos/documentos/jobs de teste sem apagar o lead por padrão. O número `+5541987277528` foi resetado com sucesso: 2 conversas e 21 mensagens removidas, lead mantido.

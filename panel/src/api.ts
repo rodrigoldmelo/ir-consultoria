@@ -259,6 +259,23 @@ export async function sendLeadInitialOutreach(leadId: string) {
   };
 }
 
+export async function sendConversationInitialOutreach(conversationId: string) {
+  const res = await panelFetch(`/api/ir/panel/conversations/${conversationId}/outreach`, {
+    method: "POST",
+    body: "{}",
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body.error ?? `conversation_outreach_${res.status}`);
+  }
+  return body as {
+    ok: true;
+    phone: string;
+    metaLeadgenId: string;
+    leadId: string;
+  };
+}
+
 export async function sendTestDrip(
   phone: string,
   name: string,
