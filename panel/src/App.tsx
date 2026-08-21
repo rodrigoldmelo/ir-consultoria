@@ -964,12 +964,17 @@ function ConversationsPage({
   onSendMedia: (file: File | null) => void;
 }) {
   const aiPaused = selectedConversation?.status === "waiting_human";
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!selectedConversation) return;
     window.requestAnimationFrame(() => {
-      threadEndRef.current?.scrollIntoView({ block: "end" });
+      if (threadRef.current) {
+        threadRef.current.scrollTop = threadRef.current.scrollHeight;
+      } else {
+        threadEndRef.current?.scrollIntoView({ block: "end" });
+      }
     });
   }, [selectedConversation?.id, messages.length]);
 
@@ -1039,7 +1044,7 @@ function ConversationsPage({
 
         <div className="detail-layout">
           <div className="conversation-timeline">
-            <div className="message-thread lis-thread">
+            <div className="message-thread lis-thread" ref={threadRef}>
               {messages.map((message) => (
                 <MessageBubble key={message.id} message={message} />
               ))}
@@ -1830,6 +1835,7 @@ function CaseSidePanel({
 
 function MessageBubble({ message }: { message: MessageRow }) {
   const incoming = message.role === "user";
+  const isCnisGuide = message.message_type === "cnis_guide";
   return (
     <article className={incoming ? "message-row inbound" : "message-row outbound"}>
       <div className="message-author">
@@ -1837,7 +1843,20 @@ function MessageBubble({ message }: { message: MessageRow }) {
         <time>{formatDate(message.created_at)}</time>
       </div>
       <div className="message-bubble">
-        <p>{message.text ?? `[${message.message_type ?? "mídia"}]`}</p>
+        {isCnisGuide ? (
+          <div className="pdf-message-card">
+            <div className="pdf-file">
+              <FileText className="icon" />
+              <div>
+                <strong>Passo-a-passo-CNIS-IR-Consultoria.pdf</strong>
+                <span>PDF enviado pelo agente</span>
+              </div>
+            </div>
+            <p>{message.text}</p>
+          </div>
+        ) : (
+          <p>{message.text ?? `[${message.message_type ?? "mídia"}]`}</p>
+        )}
       </div>
       <button type="button" className="reply-link" disabled>
         Responder
