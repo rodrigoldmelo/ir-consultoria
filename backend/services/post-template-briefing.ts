@@ -105,10 +105,17 @@ export function isTemplateAccept(text: string): boolean {
 
 export function renderPostTemplateBriefing(name?: string | null): string {
   const who = honorificName(name);
-  const core =
-    "Aqui é da IR Consultoria, assessoria especializada em Restituição do INSS para médicos. Pode existir INSS pago a mais quando há mais de uma fonte no mesmo período; não é restituição de Imposto de Renda e não há garantia de valor.";
   if (!who) {
-    return `Olá, tudo bem? ${core} Para eu te atender melhor, como prefere que eu te chame?`;
+    return [
+      "Olá, tudo bem?",
+      "Sou da IR Consultoria, assessoria especializada em Restituição do INSS para médicos.",
+      "Para eu te atender melhor, como prefere que eu te chame?",
+    ].join("\n\n");
   }
-  return `Olá, ${who}, tudo bem? ${core} Já tinha conhecimento sobre esse assunto?`;
+  return [
+    `Olá, ${who}, tudo bem?`,
+    "Sou da IR Consultoria, assessoria especializada em Restituição do INSS para médicos.",
+    "Pode existir INSS pago a mais quando o médico trabalhou por mais de uma fonte pagadora no mesmo período. Lembrando que não se trata de restituição de Imposto de Renda e a análise não garante valor.",
+    "Você já tinha conhecimento sobre esse assunto?",
+  ].join("\n\n");
 }

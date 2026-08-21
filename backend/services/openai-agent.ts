@@ -262,13 +262,14 @@ Obrigatório se o nome já for conhecido:
 - dizer que é da IR Consultoria, assessoria especializada em Restituição do INSS para médicos;
 - explicar em 1 frase: pode existir INSS pago a mais quando o médico trabalhou por mais de uma fonte no mesmo período; não é restituição de Imposto de Renda; análise não garante valor;
 - perguntar se o lead já tinha conhecimento sobre o assunto (única pergunta).
+- Formate como WhatsApp humano: blocos curtos separados por uma linha em branco. Estrutura preferida: saudação; apresentação; explicação objetiva; pergunta.
 Obrigatório se o nome NÃO for conhecido:
 - saudação humana + apresentação curta da IR;
 - perguntar o primeiro nome;
 - não pergunte se conhecia ainda.
 Não avance para perguntas de vínculo neste turno.
 Não peça nome, telefone ou email se já vieram no contexto do cadastro.
-Máximo 430 caracteres. Frases curtas. Sem valor, prazo, senha, reunião, “como posso ajudar”.`,
+Máximo 520 caracteres. Frases curtas. Sem parágrafo corrido, valor, prazo, senha, reunião, “como posso ajudar”.`,
         },
         { role: "user", content: input.userText },
       ],
