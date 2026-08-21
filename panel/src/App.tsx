@@ -320,6 +320,16 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  async function refreshConversationDetail(conversationId: string) {
+    const [messageResult, documentResult] = await Promise.all([
+      fetchConversationMessages(conversationId),
+      fetchConversationDocuments(conversationId),
+    ]);
+    setMessages((messageResult.messages ?? []) as MessageRow[]);
+    setDocuments((documentResult.documents ?? []) as DocumentRow[]);
+    setMissingDocs(documentResult.missing ?? []);
+  }
+
   useEffect(() => {
     void refresh();
   }, []);
@@ -331,19 +341,27 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       setMissingDocs([]);
       return;
     }
-    void fetchConversationMessages(selectedConvId)
-      .then((r) => setMessages((r.messages ?? []) as MessageRow[]))
+    void refreshConversationDetail(selectedConvId)
       .catch((err) => {
         if (!(err instanceof AuthRequiredError)) setError(toErrorMessage(err));
       });
-    void fetchConversationDocuments(selectedConvId)
-      .then((r) => {
-        setDocuments((r.documents ?? []) as DocumentRow[]);
-        setMissingDocs(r.missing ?? []);
-      })
-      .catch((err) => {
-        if (!(err instanceof AuthRequiredError)) setError(toErrorMessage(err));
-      });
+  }, [selectedConvId]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void fetchConversations()
+        .then((result) => setConversations((result.conversations ?? []) as ConversationRow[]))
+        .catch((err) => {
+          if (!(err instanceof AuthRequiredError)) setError(toErrorMessage(err));
+        });
+      if (selectedConvId) {
+        void refreshConversationDetail(selectedConvId).catch((err) => {
+          if (!(err instanceof AuthRequiredError)) setError(toErrorMessage(err));
+        });
+      }
+    }, 5000);
+
+    return () => window.clearInterval(timer);
   }, [selectedConvId]);
 
   async function onCsvFile(file: File | null) {
