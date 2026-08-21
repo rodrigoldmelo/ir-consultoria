@@ -67,7 +67,7 @@ function fallbackReply(
   if (action === "document") {
     return [
       "Ótimo! Agora, vou precisar que você envie o CNIS (Extrato de Contribuições do INSS) para que nossa equipe faça a triagem.",
-      "Também vamos precisar das informações de rendimentos/DIRFs para uma análise mais precisa, mas primeiro vou te enviar o passo a passo do CNIS. Depois que você mandar o CNIS, seguimos com a orientação das DIRFs, tá certo?",
+      "Também vamos precisar das informações de rendimentos/DIRFs para uma análise mais precisa. Vou te enviar um único passo a passo com as orientações para baixar o CNIS pelo Meu INSS e as DIRF's pelo Portal e-CAC, tá certo?",
     ].join("\n\n");
   }
   return `${who}Para direcionar bem rápido: nos últimos anos, você trabalhou ao mesmo tempo em duas ou mais instituições, como hospitais, clínicas, cooperativas ou órgãos públicos?`;

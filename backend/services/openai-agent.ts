@@ -193,15 +193,15 @@ export async function generateAgentReply(input: {
     );
   } else if (askedEssentialQuestion(lastAssistant?.text) && isShortYes(input.userText)) {
     turn.push(
-      "O lead respondeu SIM para a pergunta essencial de múltiplos vínculos. Não faça mais perguntas de triagem. Peça o CNIS de forma curta, diga que também serão necessárias as informações de rendimentos/DIRFs para análise precisa, mas que primeiro enviará o passo a passo do CNIS; depois do CNIS, a equipe envia/orienta o passo a passo das DIRFs.",
+      "O lead respondeu SIM para a pergunta essencial de múltiplos vínculos. Não faça mais perguntas de triagem. Peça o CNIS de forma curta, diga que também serão necessárias as informações de rendimentos/DIRFs para análise precisa e que enviará um único passo a passo com CNIS e DIRF's.",
     );
   } else if (askedEssentialQuestion(lastAssistant?.text) && isShortNo(input.userText)) {
     turn.push(
-      "O lead respondeu NÃO para a pergunta essencial de múltiplos vínculos. Diga que esse é o perfil mais comum e que a chance reduz, mas sem parecer definitivo; peça o CNIS para uma triagem inicial e diga que enviará o passo a passo. Não fale em DIRF agora, salvo se o lead perguntar.",
+      "O lead respondeu NÃO para a pergunta essencial de múltiplos vínculos. Diga que esse é o perfil mais comum e que a chance reduz, mas sem parecer definitivo; peça o CNIS para uma triagem inicial e diga que enviará um passo a passo com CNIS e DIRF's. Não dê aula sobre DIRF agora, salvo se o lead perguntar.",
     );
   } else if (statesMultipleLinks(input.userText)) {
     turn.push(
-      "O lead já informou no próprio texto múltiplos vínculos ou fontes pagadoras. Não repita a pergunta essencial. Responda em até 2 frases e peça o CNIS como próximo passo, dizendo que primeiro enviará o passo a passo do CNIS e que as DIRFs/rendimentos serão usados depois para precisão.",
+      "O lead já informou no próprio texto múltiplos vínculos ou fontes pagadoras. Não repita a pergunta essencial. Responda em até 2 frases e peça o CNIS como próximo passo, dizendo que enviará um único passo a passo com CNIS e DIRF's para ajudar na documentação.",
     );
   } else if (looksLikeKnowledgeYes(input.userText)) {
     turn.push(

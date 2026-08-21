@@ -13,7 +13,7 @@ import { downloadWhatsAppMedia } from "./meta-graph.js";
  * Tipos do checklist. Lista fechada ainda depende da tese jurídica
  * (`docs/DOCUMENT_CHECKLIST.md`) — aqui ficam só os obrigatórios propostos.
  */
-/** Triagem inicial: CNIS primeiro; DIRF/rendimentos entra em seguida para precisão. */
+/** Triagem documental: CNIS + DIRF/rendimentos para precisão da análise humana. */
 export const REQUIRED_DOCUMENT_TYPES = ["cnis", "dirf_income"] as const;
 
 export type DocumentType =
@@ -225,7 +225,7 @@ export function documentAckMessage(stored: StoredDocument): string {
     return [
       "Recebi e registrei o CNIS.",
       "Agora ainda precisamos das informações de rendimentos/DIRFs para uma análise mais precisa.",
-      "Assim que eu tiver o passo a passo das DIRFs por aqui, te oriento certinho. Se você já tiver os arquivos, pode enviar por aqui.",
+      "O passo a passo que te enviei também mostra como baixar as DIRF's pelo Portal e-CAC. Se você já tiver os arquivos, pode enviar por aqui.",
     ].join("\n\n");
   }
   const pending = stored.missing.map((m) => LABELS[m] ?? m).join("; ");

@@ -10,6 +10,7 @@
 - Documento de identificação (RG/CNH) + CPF
 - Comprovante de residência recente
 - Extratos / histórico de contribuições INSS (CNIS ou equivalente) quando aplicável
+- Cópias dos rendimentos informados pelas fontes pagadoras em DIRF
 - Documentos que sustentem o pedido de restituição (conforme tese do caso — **a definir**)
 
 ### Frequentemente úteis (não bloqueantes até definição)

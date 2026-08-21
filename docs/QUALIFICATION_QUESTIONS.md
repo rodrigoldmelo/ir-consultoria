@@ -8,8 +8,8 @@ Uma pergunta por vez. Não confirma direito.
 0. **Nome** — se ainda não houver, cumprimentar + apresentar a IR + pedir o primeiro nome. Nunca perguntar o nome sem saudação.
 1. **Conhecimento** — Já conhecia a Restituição do INSS?
 2. **Pergunta essencial** — Nos últimos anos, você trabalhou ao mesmo tempo em duas ou mais instituições (hospitais, clínicas, cooperativas, órgãos públicos)?
-3. **Documento inicial** — CNIS no Meu INSS, opção **“Vínculos, contribuições e remunerações”**. O sistema anexa o PDF do passo a passo nessa hora. Ao pedir o CNIS, avisar que as DIRFs/rendimentos também serão necessárias depois para uma análise mais precisa, mas sem enviar orientação de DIRF antes do CNIS.
-4. **DIRF / rendimentos** — depois do CNIS ou quando a equipe pedir precisão, orientar cópias dos rendimentos informados pelas fontes pagadoras em DIRF. PDF operacional ainda pendente.
+3. **Documento inicial** — CNIS no Meu INSS, opção **“Vínculos, contribuições e remunerações”**. O sistema anexa um PDF único com o passo a passo do CNIS e das DIRF's. Ao pedir o CNIS, avisar que as DIRFs/rendimentos também serão necessárias para uma análise mais precisa.
+4. **DIRF / rendimentos** — orientar cópias dos rendimentos informados pelas fontes pagadoras em DIRF pelo mesmo PDF operacional aprovado.
 
 ## Regra prática
 
@@ -28,7 +28,7 @@ Uma pergunta por vez. Não confirma direito.
 | Incerto / restituição anterior / processo | Humano |
 | Pediu para parar | Opt-out |
 | Pediu humano | `waiting_human` |
-| Indícios + CNIS | Triagem humana; DIRF depois para precisão |
+| Indícios + CNIS | Triagem humana; DIRF/rendimentos para precisão |
 
 ## Linguagem
 

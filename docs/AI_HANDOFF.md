@@ -25,7 +25,7 @@ Cursor = **cérebro / arquiteto / orquestrador** do produto IR (isolado da Lis).
 - Painel: Import CSV, Reheat decide, Inbox reply/takeover/resume + documentos + envio humano de anexos com IA pausada. Login cookie (não colar token).
 - Follow-up worker real (off por default).
 - Documentos: `services/documents.ts` (sha256 + bucket + checklist); caso criado na 1ª mídia. Recebe PDF/imagens/áudios suportados; envio manual de imagem/áudio/vídeo/documento passa por `/api/ir/panel/conversations/:id/media`.
-- OpenAI ligada (`npm run check:agent`); runtime `prompts/agent-system-prompt.md`; tratamento Dr(a). + nome; abertura explica Restituição do INSS; PDF do CNIS após o pedido do extrato.
+- OpenAI ligada (`npm run check:agent`); runtime `prompts/agent-system-prompt.md`; tratamento Dr(a). + nome; abertura explica Restituição do INSS; PDF único CNIS + DIRF após o pedido dos documentos.
 - Webhooks validam HMAC `x-hub-signature-256` (`npm run check:webhook`); sem assinatura
   só passa fora de produção.
 - Fila do template inicial vive em `ir_leads.status` (`template_queued` → `template_sending`

@@ -468,7 +468,7 @@ function mediaMessageType(mimeType: string): "image" | "audio" | "video" | "docu
   return "document";
 }
 
-/** Envia PDF (passo a passo CNIS). Usa cache do media_id da Meta. */
+/** Envia PDF (passo a passo CNIS + DIRF). Usa cache do media_id da Meta. */
 export async function sendWhatsAppDocument(input: {
   toE164: string;
   buffer: Buffer;
