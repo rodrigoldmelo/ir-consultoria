@@ -4,6 +4,7 @@
 
 - `docs/HANDOFF_CODEX_LEADGEN_2026-08-21.md`: webhook Test OK + subscribed_apps OK, fills reais só na Central; bypass `meta-pull-leads` parado em token inválido na cola.
 - Lead Ads endurecido para produção: `IR_META_PAGE_TOKEN` separado do token WhatsApp, `fetchLeadgenDetails` prefere o Page Token com `leads_retrieval`, `meta-pull-leads` aceita token por env ou arquivo (`PAGE_TOKEN_FILE=/tmp/page_token.txt`), sanitiza aspas/quebras/JSON/URL e valida `me?fields=id,name` antes de puxar leads. O pull agora preserva `raw_payload.parsed_form` com nome, telefone, email, resposta médico(a) e raw fields, mantendo o contexto essencial do formulário antes de enfileirar o template `contato_inicial`.
+- Como fills reais continuam chegando só na Central de Leads, foi criado o fallback automático `meta-lead-pull-worker`: com `IR_META_LEAD_PULL_WORKER_ENABLED=true`, `IR_META_PAGE_TOKEN` e `IR_META_FORM_IDS`, a API consulta periodicamente os formulários na Graph, ingere apenas leads novos por `meta_leadgen_id` e acorda o worker de template. O script manual `meta:pull-leads` passou a usar o mesmo serviço do worker.
 
 ## 2026-08-20 — Script `meta:pull-leads` (bypass webhook)
 

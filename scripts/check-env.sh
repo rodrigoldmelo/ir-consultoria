@@ -58,6 +58,7 @@ for var in IR_META_APP_ID IR_META_APP_SECRET IR_META_PAGE_ID; do
 done
 if has IR_META_FORM_IDS; then ok "IR_META_FORM_IDS"; else miss "IR_META_FORM_IDS (opcional até form existir)"; fi
 if has IR_META_PAGE_TOKEN; then ok "IR_META_PAGE_TOKEN (pull/detalhes leadgen)"; else miss "IR_META_PAGE_TOKEN (recomendado p/ pull e detalhes leadgen)"; fi
+if [[ "${IR_META_LEAD_PULL_WORKER_ENABLED:-false}" == "true" ]]; then ok "IR_META_LEAD_PULL_WORKER_ENABLED"; else miss "IR_META_LEAD_PULL_WORKER_ENABLED (fallback automático p/ Lead Ads)"; fi
 
 echo
 echo "--- OpenAI (conversa) ---"

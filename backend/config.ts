@@ -82,6 +82,7 @@ export const config = {
       process.env.IR_DOCUMENT_CLASSIFICATION_WORKER_ENABLED === "true",
     followUp: process.env.IR_FOLLOW_UP_WORKER_ENABLED === "true",
     inWindowNudge: process.env.IR_INWINDOW_NUDGE_ENABLED === "true",
+    metaLeadPull: process.env.IR_META_LEAD_PULL_WORKER_ENABLED === "true",
   },
 };
 

@@ -13,6 +13,7 @@ import whatsappRouter from "./routes/webhooks/whatsapp.js";
 import { mountPanelStatic } from "./panel-static.js";
 import { startFollowUpWorker } from "./workers/follow-up-worker.js";
 import { startInWindowNudgeWorker } from "./workers/in-window-nudge-worker.js";
+import { startMetaLeadPullWorker } from "./workers/meta-lead-pull-worker.js";
 import { startTemplateWorker } from "./workers/template-worker.js";
 
 assertProductionSecrets();
@@ -52,4 +53,5 @@ app.listen(config.port, config.bindAddress, () => {
   startTemplateWorker();
   startFollowUpWorker();
   startInWindowNudgeWorker();
+  startMetaLeadPullWorker();
 });
