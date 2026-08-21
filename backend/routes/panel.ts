@@ -1,7 +1,9 @@
 import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import {
+  deleteMessageForPanel,
   getConversationById,
+  getMessageForConversation,
   insertMessage,
   listConversations,
   listMessagesForPanel,
@@ -352,6 +354,7 @@ router.post("/conversations/:id/resume", async (req, res) => {
 router.post("/conversations/:id/reply", async (req, res) => {
   try {
     const text = String(req.body?.text ?? "").trim();
+    const replyToMessageId = String(req.body?.replyToMessageId ?? "").trim();
     if (!text) {
       res.status(400).json({ error: "missing_text" });
       return;
@@ -362,9 +365,13 @@ router.post("/conversations/:id/reply", async (req, res) => {
       return;
     }
 
+    const quoted = replyToMessageId
+      ? await getMessageForConversation(conversation.id, replyToMessageId)
+      : null;
     const sent = await sendWhatsAppText({
       toE164: conversation.phone,
       text,
+      contextMessageId: quoted?.external_message_id ?? null,
     });
     if (!sent.ok) {
       res.status(400).json({ error: sent.error });
@@ -397,6 +404,7 @@ router.post("/conversations/:id/media", async (req, res) => {
     const mimeType = String(req.body?.mimeType ?? "").trim();
     const base64 = String(req.body?.base64 ?? "").trim();
     const caption = String(req.body?.caption ?? "").trim();
+    const replyToMessageId = String(req.body?.replyToMessageId ?? "").trim();
     if (!filename || !mimeType || !base64) {
       res.status(400).json({ error: "missing_media" });
       return;
@@ -412,12 +420,16 @@ router.post("/conversations/:id/media", async (req, res) => {
       return;
     }
 
+    const quoted = replyToMessageId
+      ? await getMessageForConversation(conversation.id, replyToMessageId)
+      : null;
     const sent = await sendWhatsAppMedia({
       toE164: conversation.phone,
       buffer,
       filename,
       mimeType,
       caption: caption || undefined,
+      contextMessageId: quoted?.external_message_id ?? null,
     });
     if (!sent.ok) {
       res.status(400).json({ error: sent.error });
@@ -444,6 +456,38 @@ router.post("/conversations/:id/media", async (req, res) => {
   } catch (err) {
     console.error("[panel/media]", err);
     res.status(500).json({ error: "media_failed" });
+  }
+});
+
+/** Apaga do painel/banco. A Cloud API não remove mensagem já entregue no WhatsApp do lead. */
+router.delete("/conversations/:id/messages/:messageId", async (req, res) => {
+  try {
+    const conversation = await getConversationById(String(req.params.id));
+    if (!conversation) {
+      res.status(404).json({ error: "conversation_not_found" });
+      return;
+    }
+    const message = await getMessageForConversation(
+      conversation.id,
+      String(req.params.messageId),
+    );
+    if (!message) {
+      res.status(404).json({ error: "message_not_found" });
+      return;
+    }
+    if (message.role === "user") {
+      res.status(400).json({ error: "cannot_delete_lead_message" });
+      return;
+    }
+    const ok = await deleteMessageForPanel(conversation.id, message.id);
+    if (!ok) {
+      res.status(500).json({ error: "delete_failed" });
+      return;
+    }
+    res.json({ ok: true, scope: "panel_only" });
+  } catch (err) {
+    console.error("[panel/delete-message]", err);
+    res.status(500).json({ error: "delete_failed" });
   }
 });
 

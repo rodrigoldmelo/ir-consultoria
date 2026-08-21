@@ -10,23 +10,34 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock3,
+  FileUp,
   FileText,
   History,
+  Image as ImageIcon,
   Inbox,
   LayoutDashboard,
   LogOut,
+  Mail,
   MessageSquare,
+  Mic,
+  Phone,
   RefreshCw,
+  Reply,
   Save,
   Search,
   Send,
   Settings,
+  Stethoscope,
+  Trash2,
   Upload,
   UserRoundCheck,
   Users,
+  Video,
+  X,
 } from "lucide-react";
 import {
   AuthRequiredError,
+  deletePanelMessage,
   decideReheat,
   fetchConversationDocuments,
   fetchConversationMessages,
@@ -167,6 +178,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   const [reheatBusy, setReheatBusy] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
+  const [replyToMessage, setReplyToMessage] = useState<MessageRow | null>(null);
   const [replyBusy, setReplyBusy] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [decideBusyId, setDecideBusyId] = useState<string | null>(null);
@@ -339,6 +351,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       setMessages([]);
       setDocuments([]);
       setMissingDocs([]);
+      setReplyToMessage(null);
       return;
     }
     void refreshConversationDetail(selectedConvId)
@@ -423,8 +436,9 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     setReplyBusy(true);
     setActionMsg("");
     try {
-      await sendHumanReply(selectedConvId, replyDraft.trim());
+      await sendHumanReply(selectedConvId, replyDraft.trim(), replyToMessage?.id);
       setReplyDraft("");
+      setReplyToMessage(null);
       setActionMsg("Mensagem humana enviada.");
       const r = await fetchConversationMessages(selectedConvId);
       setMessages((r.messages ?? []) as MessageRow[]);
@@ -451,8 +465,10 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         mimeType: file.type || "application/octet-stream",
         base64,
         caption: replyDraft.trim() || undefined,
+        replyToMessageId: replyToMessage?.id,
       });
       setReplyDraft("");
+      setReplyToMessage(null);
       setActionMsg("Anexo humano enviado.");
       const r = await fetchConversationMessages(selectedConvId);
       setMessages((r.messages ?? []) as MessageRow[]);
@@ -461,6 +477,24 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       setError(toErrorMessage(err));
     } finally {
       setMediaBusy(false);
+    }
+  }
+
+  async function onDeleteMessage(messageId: string) {
+    if (!selectedConvId) return;
+    const ok = window.confirm(
+      "Apagar esta mensagem do painel IR? Isso não apaga a mensagem já entregue no WhatsApp do lead.",
+    );
+    if (!ok) return;
+    setActionMsg("");
+    try {
+      await deletePanelMessage(selectedConvId, messageId);
+      setActionMsg("Mensagem apagada do painel.");
+      const r = await fetchConversationMessages(selectedConvId);
+      setMessages((r.messages ?? []) as MessageRow[]);
+      await refresh();
+    } catch (err) {
+      setError(toErrorMessage(err));
     }
   }
 
@@ -585,6 +619,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             filter={conversationFilter}
             search={conversationSearch}
             replyDraft={replyDraft}
+            replyToMessage={replyToMessage}
             replyBusy={replyBusy}
             mediaBusy={mediaBusy}
             onFilter={setConversationFilter}
@@ -594,8 +629,11 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             onResume={() => void onResume()}
             onOpenDocument={(id) => void onOpenDocument(id)}
             onReplyDraft={setReplyDraft}
+            onReplyTo={setReplyToMessage}
+            onClearReplyTo={() => setReplyToMessage(null)}
             onSendReply={() => void onSendReply()}
             onSendMedia={(file) => void onSendMedia(file)}
+            onDeleteMessage={(id) => void onDeleteMessage(id)}
           />
         ) : null}
 
@@ -928,6 +966,7 @@ function ConversationsPage({
   filter,
   search,
   replyDraft,
+  replyToMessage,
   replyBusy,
   mediaBusy,
   onFilter,
@@ -937,8 +976,11 @@ function ConversationsPage({
   onResume,
   onOpenDocument,
   onReplyDraft,
+  onReplyTo,
+  onClearReplyTo,
   onSendReply,
   onSendMedia,
+  onDeleteMessage,
 }: {
   conversations: ConversationRow[];
   allConversations: ConversationRow[];
@@ -951,6 +993,7 @@ function ConversationsPage({
   filter: (typeof IR_STATUSES)[number];
   search: string;
   replyDraft: string;
+  replyToMessage: MessageRow | null;
   replyBusy: boolean;
   mediaBusy: boolean;
   onFilter: (filter: (typeof IR_STATUSES)[number]) => void;
@@ -960,8 +1003,11 @@ function ConversationsPage({
   onResume: () => void;
   onOpenDocument: (id: string) => void;
   onReplyDraft: (text: string) => void;
+  onReplyTo: (message: MessageRow) => void;
+  onClearReplyTo: () => void;
   onSendReply: () => void;
   onSendMedia: (file: File | null) => void;
+  onDeleteMessage: (id: string) => void;
 }) {
   const aiPaused = selectedConversation?.status === "waiting_human";
   const threadRef = useRef<HTMLDivElement | null>(null);
@@ -1046,7 +1092,12 @@ function ConversationsPage({
           <div className="conversation-timeline">
             <div className="message-thread lis-thread" ref={threadRef}>
               {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  onReply={onReplyTo}
+                  onDelete={onDeleteMessage}
+                />
               ))}
               {!messages.length ? <EmptyState text="Sem mensagens nesta conversa." compact /> : null}
               <div ref={threadEndRef} />
@@ -1061,6 +1112,25 @@ function ConversationsPage({
                     onSendReply();
                   }}
                 >
+                  {replyToMessage ? (
+                    <div className="reply-preview">
+                      <Reply className="icon" />
+                      <div>
+                        <strong>
+                          Respondendo {replyToMessage.role === "user" ? "lead" : "mensagem enviada"}
+                        </strong>
+                        <span>{messagePreview(replyToMessage)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label="Cancelar resposta"
+                        onClick={onClearReplyTo}
+                      >
+                        <X className="icon" />
+                      </button>
+                    </div>
+                  ) : null}
                   <textarea
                     value={replyDraft}
                     onChange={(event) => onReplyDraft(event.target.value)}
@@ -1068,20 +1138,36 @@ function ConversationsPage({
                     rows={3}
                     disabled={replyBusy || mediaBusy}
                   />
-                  <label className="btn btn-outline composer-attach">
-                    <Upload className="icon" />
-                    Anexo
-                    <input
-                      type="file"
-                      accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx"
+                  <div className="composer-media-actions">
+                    <FilePickerButton
+                      label="Áudio"
+                      icon={Mic}
+                      accept="audio/*"
                       disabled={replyBusy || mediaBusy}
-                      onChange={(event) => {
-                        const file = event.currentTarget.files?.[0] ?? null;
-                        void onSendMedia(file);
-                        event.currentTarget.value = "";
-                      }}
+                      onFile={onSendMedia}
                     />
-                  </label>
+                    <FilePickerButton
+                      label="Imagem"
+                      icon={ImageIcon}
+                      accept="image/*"
+                      disabled={replyBusy || mediaBusy}
+                      onFile={onSendMedia}
+                    />
+                    <FilePickerButton
+                      label="Vídeo"
+                      icon={Video}
+                      accept="video/*"
+                      disabled={replyBusy || mediaBusy}
+                      onFile={onSendMedia}
+                    />
+                    <FilePickerButton
+                      label="Arquivo"
+                      icon={FileUp}
+                      accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,application/pdf"
+                      disabled={replyBusy || mediaBusy}
+                      onFile={onSendMedia}
+                    />
+                  </div>
                   <button
                     type="submit"
                     className="btn btn-primary"
@@ -1721,6 +1807,34 @@ function CaseSidePanel({
       <section>
         <h3>Dados do lead</h3>
         <div className="side-row">
+          <UserRoundCheck className="icon" />
+          <div>
+            <span>Nome</span>
+            <p>{leadDisplayName(conversation)}</p>
+          </div>
+        </div>
+        <div className="side-row">
+          <Stethoscope className="icon" />
+          <div>
+            <span>Médico(a)</span>
+            <p>{doctorAnswerLabel(conversation)}</p>
+          </div>
+        </div>
+        <div className="side-row">
+          <Phone className="icon" />
+          <div>
+            <span>Telefone</span>
+            <p>{formatPhoneDisplay(conversation.lead_phone ?? conversation.phone)}</p>
+          </div>
+        </div>
+        <div className="side-row">
+          <Mail className="icon" />
+          <div>
+            <span>Email</span>
+            <p>{conversation.lead_email?.trim() || "Não informado"}</p>
+          </div>
+        </div>
+        <div className="side-row">
           <MessageSquare className="icon" />
           <div>
             <span>Origem</span>
@@ -1833,9 +1947,55 @@ function CaseSidePanel({
   );
 }
 
-function MessageBubble({ message }: { message: MessageRow }) {
+function FilePickerButton({
+  label,
+  icon: Icon,
+  accept,
+  disabled,
+  onFile,
+}: {
+  label: string;
+  icon: LucideIcon;
+  accept: string;
+  disabled: boolean;
+  onFile: (file: File | null) => void;
+}) {
+  return (
+    <label className="btn btn-outline composer-attach">
+      <Icon className="icon" />
+      {label}
+      <input
+        type="file"
+        accept={accept}
+        disabled={disabled}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0] ?? null;
+          onFile(file);
+          event.currentTarget.value = "";
+        }}
+      />
+    </label>
+  );
+}
+
+function messagePreview(message: MessageRow): string {
+  const text = message.text?.trim();
+  if (text) return text.length > 90 ? `${text.slice(0, 87)}...` : text;
+  return `[${message.message_type ?? "mídia"}]`;
+}
+
+function MessageBubble({
+  message,
+  onReply,
+  onDelete,
+}: {
+  message: MessageRow;
+  onReply: (message: MessageRow) => void;
+  onDelete: (id: string) => void;
+}) {
   const incoming = message.role === "user";
   const isCnisGuide = message.message_type === "cnis_guide";
+  const canDelete = !incoming;
   return (
     <article className={incoming ? "message-row inbound" : "message-row outbound"}>
       <div className="message-author">
@@ -1858,9 +2018,22 @@ function MessageBubble({ message }: { message: MessageRow }) {
           <p>{message.text ?? `[${message.message_type ?? "mídia"}]`}</p>
         )}
       </div>
-      <button type="button" className="reply-link" disabled>
-        Responder
-      </button>
+      <div className="message-actions">
+        <button type="button" className="reply-link" onClick={() => onReply(message)}>
+          <Reply className="tiny-icon" />
+          Responder
+        </button>
+        {canDelete ? (
+          <button
+            type="button"
+            className="reply-link danger"
+            onClick={() => onDelete(message.id)}
+          >
+            <Trash2 className="tiny-icon" />
+            Apagar
+          </button>
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -1928,6 +2101,14 @@ function leadDisplayName(conversation: ConversationRow): string {
   const name = conversation.lead_name?.trim();
   if (name) return name;
   return formatPhoneDisplay(conversation.phone);
+}
+
+function doctorAnswerLabel(conversation: ConversationRow): string {
+  const answer = conversation.lead_doctor_answer?.trim();
+  if (answer) return answer;
+  if (conversation.lead_is_doctor === true) return "Sim";
+  if (conversation.lead_is_doctor === false) return "Não";
+  return "Não informado";
 }
 
 function formatPhoneDisplay(phone?: string | null): string {

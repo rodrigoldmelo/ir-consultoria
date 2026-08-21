@@ -18,6 +18,7 @@
     "check:queue": "tsx scripts/check-template-queue.ts",
     "check:inbox": "tsx scripts/diag-inbox.ts",
     "merge:conversations": "tsx scripts/merge-duplicate-conversations.ts",
+    "fix:cnis-doc": "tsx scripts/reclassify-cnis-document.ts",
     "meta:subscribe-leadgen": "bash scripts/meta-subscribe-leadgen.sh",
     "meta:pull-leads": "tsx scripts/meta-pull-leads.ts",
     "sync:vps": "bash scripts/sync-to-vps.sh",

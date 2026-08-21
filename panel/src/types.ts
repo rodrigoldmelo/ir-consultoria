@@ -40,7 +40,13 @@ export type ConversationRow = {
   status: string;
   source?: string | null;
   lead_name?: string | null;
+  lead_phone?: string | null;
+  lead_email?: string | null;
   lead_source?: string | null;
+  lead_form_id?: string | null;
+  lead_meta_id?: string | null;
+  lead_is_doctor?: boolean | null;
+  lead_doctor_answer?: string | null;
   last_message_text?: string | null;
   last_message_at?: string | null;
   last_inbound_at?: string | null;
@@ -63,5 +69,7 @@ export type MessageRow = {
   role: string;
   text: string | null;
   message_type?: string | null;
+  external_message_id?: string | null;
+  delivery_status?: string | null;
   created_at: string;
 };

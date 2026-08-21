@@ -1128,13 +1128,33 @@ button:disabled {
   font-size: 11px;
 }
 
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 .reply-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   margin-top: 6px;
   border: 0;
   background: transparent;
   color: var(--muted-foreground);
   padding: 0;
   font-size: 11px;
+  cursor: pointer;
+}
+
+.reply-link.danger {
+  color: var(--destructive);
+}
+
+.tiny-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .lis-side-panel {
@@ -1575,6 +1595,35 @@ button:disabled {
   padding: 0;
 }
 
+.reply-preview {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-left: 3px solid var(--primary);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--primary) 8%, var(--card));
+  padding: 8px 10px;
+}
+
+.reply-preview strong,
+.reply-preview span {
+  display: block;
+}
+
+.reply-preview strong {
+  font-size: 12px;
+}
+
+.reply-preview span {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .composer textarea {
   width: 100%;
   min-height: 72px;
@@ -1593,8 +1642,15 @@ button:disabled {
   height: 40px;
 }
 
+.composer-media-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(92px, 1fr));
+  gap: 8px;
+}
+
 .composer-attach {
   cursor: pointer;
+  justify-content: center;
 }
 
 .composer-attach input {
@@ -2378,6 +2434,14 @@ th {
 }
 
 @media (max-width: 560px) {
+  .composer {
+    grid-template-columns: 1fr;
+  }
+
+  .composer-media-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .stats-grid {
     grid-template-columns: 1fr;
   }

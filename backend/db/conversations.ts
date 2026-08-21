@@ -21,9 +21,56 @@ export type IrConversationPanelRow = IrConversationRow & {
   last_message_text: string | null;
   last_message_at: string | null;
   lead_name: string | null;
+  lead_phone: string | null;
+  lead_email: string | null;
   lead_source: string | null;
+  lead_form_id: string | null;
+  lead_meta_id: string | null;
+  lead_is_doctor: boolean | null;
+  lead_doctor_answer: string | null;
   source: string | null;
 };
+
+type ParsedLeadPayload = {
+  parsed_form?: {
+    is_doctor?: boolean | null;
+    doctor_answer?: string | null;
+  };
+};
+
+type LeadPanelInfo = {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  source: string | null;
+  form_id: string | null;
+  meta_leadgen_id: string | null;
+  is_doctor: boolean | null;
+  doctor_answer: string | null;
+};
+
+function leadPanelInfoFromRow(lead: Record<string, unknown>): LeadPanelInfo {
+  const payload =
+    lead.raw_payload && typeof lead.raw_payload === "object"
+      ? (lead.raw_payload as ParsedLeadPayload)
+      : {};
+  const parsed = payload.parsed_form ?? {};
+
+  return {
+    id: String(lead.id),
+    name: (lead.name as string | null) ?? null,
+    phone: (lead.phone as string | null) ?? null,
+    email: (lead.email as string | null) ?? null,
+    source: (lead.source as string | null) ?? null,
+    form_id: (lead.form_id as string | null) ?? null,
+    meta_leadgen_id: (lead.meta_leadgen_id as string | null) ?? null,
+    is_doctor:
+      typeof parsed.is_doctor === "boolean" ? parsed.is_doctor : null,
+    doctor_answer:
+      typeof parsed.doctor_answer === "string" ? parsed.doctor_answer : null,
+  };
+}
 
 function normalizePhoneKey(phone: string): string {
   return normalizePhoneDigits(phone);
@@ -332,23 +379,22 @@ export async function listConversations(limit = 80): Promise<IrConversationPanel
     ),
   ];
 
-  const leadsById = new Map<string, { name: string | null; source: string | null; phone: string | null }>();
-  const leadsByPhone = new Map<string, { name: string | null; source: string | null }>();
+  const leadSelect =
+    "id, meta_leadgen_id, name, phone, email, source, form_id, raw_payload";
+  const leadsById = new Map<string, LeadPanelInfo>();
+  const leadsByPhone = new Map<string, LeadPanelInfo>();
 
   if (leadIds.length) {
     const { data: leads, error: leadsError } = await db
       .from("ir_leads")
-      .select("id, name, phone, source")
+      .select(leadSelect)
       .in("id", leadIds);
     if (leadsError) {
       console.error("[db/conversations] list leads by id", leadsError.message);
     } else {
       for (const lead of leads ?? []) {
-        leadsById.set(String(lead.id), {
-          name: (lead.name as string | null) ?? null,
-          source: (lead.source as string | null) ?? null,
-          phone: (lead.phone as string | null) ?? null,
-        });
+        const info = leadPanelInfoFromRow(lead);
+        leadsById.set(info.id, info);
       }
     }
   }
@@ -356,30 +402,24 @@ export async function listConversations(limit = 80): Promise<IrConversationPanel
   if (phones.length) {
     const { data: leads, error: leadsError } = await db
       .from("ir_leads")
-      .select("id, name, phone, source")
+      .select(leadSelect)
       .in("phone", phones);
     if (leadsError) {
       console.error("[db/conversations] list leads by phone", leadsError.message);
     } else {
       for (const lead of leads ?? []) {
-        const packed = {
-          name: (lead.name as string | null) ?? null,
-          source: (lead.source as string | null) ?? null,
-        };
-        if (!leadsById.has(String(lead.id))) {
-          leadsById.set(String(lead.id), {
-            ...packed,
-            phone: (lead.phone as string | null) ?? null,
-          });
+        const info = leadPanelInfoFromRow(lead);
+        if (!leadsById.has(info.id)) {
+          leadsById.set(info.id, info);
         }
         const phoneKey = normalizePhoneKey(String(lead.phone ?? ""));
         if (phoneKey && !leadsByPhone.has(phoneKey)) {
-          leadsByPhone.set(phoneKey, packed);
+          leadsByPhone.set(phoneKey, info);
         }
         for (const candidate of phoneLookupCandidates(String(lead.phone ?? ""))) {
           const candidateKey = normalizePhoneKey(candidate);
           if (candidateKey && !leadsByPhone.has(candidateKey)) {
-            leadsByPhone.set(candidateKey, packed);
+            leadsByPhone.set(candidateKey, info);
           }
         }
       }
@@ -400,7 +440,13 @@ export async function listConversations(limit = 80): Promise<IrConversationPanel
       last_message_text: last?.text ?? (last ? `[${last.message_type ?? "mídia"}]` : null),
       last_message_at: last?.created_at ?? null,
       lead_name: lead?.name ?? null,
+      lead_phone: lead?.phone ?? null,
+      lead_email: lead?.email ?? null,
       lead_source: lead?.source ?? null,
+      lead_form_id: lead?.form_id ?? null,
+      lead_meta_id: lead?.meta_leadgen_id ?? null,
+      lead_is_doctor: lead?.is_doctor ?? null,
+      lead_doctor_answer: lead?.doctor_answer ?? null,
     };
   });
 }
@@ -414,6 +460,8 @@ export async function listMessagesForPanel(
     role: string;
     text: string | null;
     message_type: string | null;
+    external_message_id: string | null;
+    delivery_status: string | null;
     created_at: string;
   }>
 > {
@@ -422,7 +470,7 @@ export async function listMessagesForPanel(
 
   const { data, error } = await db
     .from("ir_messages")
-    .select("id, role, text, message_type, created_at")
+    .select("id, role, text, message_type, external_message_id, delivery_status, created_at")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -432,6 +480,53 @@ export async function listMessagesForPanel(
     return [];
   }
   return data ?? [];
+}
+
+export async function getMessageForConversation(
+  conversationId: string,
+  messageId: string,
+): Promise<{
+  id: string;
+  role: string;
+  text: string | null;
+  external_message_id: string | null;
+} | null> {
+  const db = getSupabaseAdmin();
+  if (!db) return null;
+
+  const { data, error } = await db
+    .from("ir_messages")
+    .select("id, role, text, external_message_id")
+    .eq("conversation_id", conversationId)
+    .eq("id", messageId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[db/conversations] getMessageForConversation", error.message);
+    return null;
+  }
+  return data ?? null;
+}
+
+export async function deleteMessageForPanel(
+  conversationId: string,
+  messageId: string,
+): Promise<boolean> {
+  const db = getSupabaseAdmin();
+  if (!db) return false;
+
+  const { error } = await db
+    .from("ir_messages")
+    .delete()
+    .eq("conversation_id", conversationId)
+    .eq("id", messageId)
+    .neq("role", "user");
+
+  if (error) {
+    console.error("[db/conversations] deleteMessageForPanel", error.message);
+    return false;
+  }
+  return true;
 }
 
 const NUDGE_STATUSES = ["qualifying", "waiting_documents", "in_service"];

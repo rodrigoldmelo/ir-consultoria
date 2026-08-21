@@ -171,10 +171,14 @@ export async function resumeConversation(id: string) {
   return res.json();
 }
 
-export async function sendHumanReply(id: string, text: string) {
+export async function sendHumanReply(
+  id: string,
+  text: string,
+  replyToMessageId?: string | null,
+) {
   const res = await panelFetch(`/api/ir/panel/conversations/${id}/reply`, {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, replyToMessageId }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error ?? `reply_${res.status}`);
@@ -188,6 +192,7 @@ export async function sendHumanMedia(
     mimeType: string;
     base64: string;
     caption?: string;
+    replyToMessageId?: string | null;
   },
 ) {
   const res = await panelFetch(`/api/ir/panel/conversations/${id}/media`, {
@@ -201,6 +206,19 @@ export async function sendHumanMedia(
     externalMessageId?: string;
     messageType?: string;
   };
+}
+
+export async function deletePanelMessage(
+  conversationId: string,
+  messageId: string,
+) {
+  const res = await panelFetch(
+    `/api/ir/panel/conversations/${conversationId}/messages/${messageId}`,
+    { method: "DELETE" },
+  );
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `delete_message_${res.status}`);
+  return body as { ok: boolean; scope: "panel_only" };
 }
 
 export async function decideReheat(

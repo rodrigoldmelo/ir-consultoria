@@ -278,6 +278,7 @@ export async function downloadWhatsAppMedia(mediaId: string): Promise<
 export async function sendWhatsAppText(input: {
   toE164: string;
   text: string;
+  contextMessageId?: string | null;
 }): Promise<
   | { ok: true; externalMessageId: string }
   | { ok: false; permanent: boolean; error: string; status?: number }
@@ -293,6 +294,9 @@ export async function sendWhatsAppText(input: {
     to: normalizeWaRecipient(input.toE164),
     type: "text",
     text: { body: input.text.slice(0, 4000) },
+    ...(input.contextMessageId
+      ? { context: { message_id: input.contextMessageId } }
+      : {}),
   };
 
   const result = await graphFetch<{ messages?: Array<{ id?: string }> }>(
@@ -382,6 +386,7 @@ export async function sendWhatsAppMedia(input: {
   filename: string;
   mimeType: string;
   caption?: string;
+  contextMessageId?: string | null;
 }): Promise<
   | { ok: true; externalMessageId: string; messageType: "image" | "audio" | "video" | "document" }
   | { ok: false; permanent: boolean; error: string }
@@ -424,6 +429,9 @@ export async function sendWhatsAppMedia(input: {
     to: normalizeWaRecipient(input.toE164),
     type: messageType,
     [messageType]: mediaPayload,
+    ...(input.contextMessageId
+      ? { context: { message_id: input.contextMessageId } }
+      : {}),
   };
 
   const result = await graphFetch<{ messages?: Array<{ id?: string }> }>(

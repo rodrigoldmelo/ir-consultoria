@@ -60,12 +60,15 @@ function fallbackReply(
   action: "qualify" | "document" | "media",
   honorific?: string | null,
 ): string {
-  const who = honorific ? `${honorific}, ` : "";
+  const who = action === "qualify" && honorific ? `${honorific}, ` : "";
   if (action === "media") {
     return `${who}Recebi seu arquivo. Vou registrar e, se faltar algum documento, te aviso. Enquanto isso, pode me confirmar se você contribui ou contribuiu para o INSS?`;
   }
   if (action === "document") {
-    return `${who}Joia! Agora vou te enviar o passo a passo para baixar o CNIS (Extrato de Contribuições) no app Meu INSS, tá certo?`;
+    return [
+      "Ótimo! Agora, vou precisar que você envie o CNIS (Extrato de Contribuições do INSS) para que nossa equipe faça a triagem.",
+      "Também vamos precisar das informações de rendimentos/DIRFs para uma análise mais precisa, mas primeiro vou te enviar o passo a passo do CNIS. Depois que você mandar o CNIS, seguimos com a orientação das DIRFs, tá certo?",
+    ].join("\n\n");
   }
   return `${who}Para direcionar bem rápido: nos últimos anos, você trabalhou ao mesmo tempo em duas ou mais instituições, como hospitais, clínicas, cooperativas ou órgãos públicos?`;
 }
@@ -306,6 +309,10 @@ export async function handleInboundWhatsApp(input: {
       mediaId: input.mediaId,
       caption: rawText || undefined,
       filename: input.mediaFilename,
+      expectedDocumentType:
+        conversation.status === "waiting_documents"
+          ? "cnis"
+          : null,
     });
 
     if (stored) {

@@ -40,10 +40,13 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   "audio/webm": "webm",
 };
 
-/** Palpite pelo texto/legenda; classificação real fica para revisão humana. */
-export function guessDocumentType(hint: string | undefined): DocumentType {
+/** Palpite pelo texto/legenda/contexto; classificação final segue revisão humana. */
+export function guessDocumentType(
+  hint: string | undefined,
+  expectedType?: DocumentType | null,
+): DocumentType {
   const text = (hint ?? "").toLowerCase();
-  if (!text) return "other";
+  if (!text) return expectedType ?? "other";
   if (text.includes("dirf") && !text.includes("dirpf")) {
     return "dirf_income";
   }
@@ -79,7 +82,7 @@ export function guessDocumentType(hint: string | undefined): DocumentType {
   if (text.includes("imposto") || text.includes("declara")) return "income_tax";
   if (text.includes("holerite") || text.includes("contracheque")) return "payslip";
   if (text.includes("contrato")) return "contract";
-  return "other";
+  return expectedType ?? "other";
 }
 
 export type StoredDocument = {
@@ -100,6 +103,7 @@ export async function storeInboundDocument(input: {
   mediaId: string;
   caption?: string;
   filename?: string;
+  expectedDocumentType?: DocumentType | null;
 }): Promise<StoredDocument | null> {
   const db = getSupabaseAdmin();
   if (!db) return null;
@@ -132,7 +136,10 @@ export async function storeInboundDocument(input: {
     EXTENSION_BY_MIME[media.mimeType] ??
     media.mimeType.split("/")[1]?.replace(/[^a-z0-9]/g, "") ??
     "bin";
-  const documentType = guessDocumentType(input.caption ?? input.filename);
+  const documentType = guessDocumentType(
+    [input.caption, input.filename].filter(Boolean).join(" "),
+    input.expectedDocumentType,
+  );
   const storagePath = `${irCase.id}/${documentType}-${sha256.slice(0, 12)}.${extension}`;
   const bucket = config.supabase.documentsBucket;
 
@@ -204,6 +211,13 @@ const LABELS: Record<string, string> = {
 /** Texto de confirmação + pendências. Sem prometer resultado. */
 export function documentAckMessage(stored: StoredDocument): string {
   if (stored.complete) {
+    if (stored.documentType === "cnis") {
+      return [
+        "Recebi e registrei o CNIS.",
+        "Com isso já temos o material principal para a triagem inicial. A análise passa agora para a nossa equipe, que confere os vínculos e contribuições.",
+        "Depois, para uma apuração mais precisa, vamos orientar o envio das informações de rendimentos/DIRFs.",
+      ].join("\n\n");
+    }
     return "Recebi e registrei o documento. Com isso já tenho o material principal: a análise passa agora para a nossa equipe, que confere se há indício de restituição do INSS. Assim que houver retorno, te aviso por aqui.";
   }
   const pending = stored.missing.map((m) => LABELS[m] ?? m).join("; ");

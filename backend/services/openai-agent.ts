@@ -60,6 +60,20 @@ function enforceNeutralHonorific(text: string, honorific?: string | null): strin
     );
 }
 
+function countLeadNameMentions(
+  history: Array<{ role: string; text: string | null }>,
+  honorific?: string | null,
+): number {
+  if (!honorific) return 0;
+  const firstName = honorific.replace(/^Dr\(a\)\.\s*/i, "").trim();
+  if (!firstName) return 0;
+  const escaped = firstName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`\\b(?:Dr\\(a\\)\\.\\s*)?${escaped}\\b`, "gi");
+  return history
+    .filter((m) => m.role !== "user" && m.text)
+    .reduce((total, m) => total + (m.text?.match(pattern)?.length ?? 0), 0);
+}
+
 function normalized(text: string): string {
   return text
     .normalize("NFD")
@@ -148,11 +162,14 @@ export async function generateAgentReply(input: {
 
   const client = new OpenAI({ apiKey: config.openai.apiKey });
   const turn: string[] = [];
+  const nameMentions = countLeadNameMentions(input.history, input.honorific);
   if (input.honorific) {
-    turn.push(`Tratamento obrigatório neste turno: ${input.honorific} (não use só o primeiro nome).`);
+    turn.push(
+      `Tratamento disponível: ${input.honorific}. Use esse tratamento na saudação inicial e no máximo mais uma vez quando soar natural. O nome já apareceu ${nameMentions} vez(es) nas respostas do agente; se já apareceu 2 ou mais vezes, não use nome nem Dr(a). nesta resposta.`,
+    );
   } else if (input.needsName) {
     turn.push(
-      "Nome ainda desconhecido. Cumprimente com naturalidade, apresente a IR Consultoria em uma frase e pergunte o primeiro nome. Não mande apenas 'Como prefere que eu te chame?'. Depois disso, sempre Dr(a). {Nome}.",
+      "Nome ainda desconhecido. Cumprimente com naturalidade, apresente a IR Consultoria em uma frase e pergunte o primeiro nome. Não mande apenas 'Como prefere que eu te chame?'. Depois disso, use Dr(a). {Nome} com moderação, sem repetir em toda mensagem.",
     );
   }
   if (!input.briefingDone && !input.needsName) {
@@ -176,15 +193,15 @@ export async function generateAgentReply(input: {
     );
   } else if (askedEssentialQuestion(lastAssistant?.text) && isShortYes(input.userText)) {
     turn.push(
-      "O lead respondeu SIM para a pergunta essencial de múltiplos vínculos. Não faça mais perguntas de triagem. Peça o CNIS de forma curta e diga que enviará o passo a passo.",
+      "O lead respondeu SIM para a pergunta essencial de múltiplos vínculos. Não faça mais perguntas de triagem. Peça o CNIS de forma curta, diga que também serão necessárias as informações de rendimentos/DIRFs para análise precisa, mas que primeiro enviará o passo a passo do CNIS; depois do CNIS, a equipe envia/orienta o passo a passo das DIRFs.",
     );
   } else if (askedEssentialQuestion(lastAssistant?.text) && isShortNo(input.userText)) {
     turn.push(
-      "O lead respondeu NÃO para a pergunta essencial de múltiplos vínculos. Diga que esse é o perfil mais comum e que a chance reduz, mas sem parecer definitivo; peça o CNIS para uma triagem inicial e diga que enviará o passo a passo.",
+      "O lead respondeu NÃO para a pergunta essencial de múltiplos vínculos. Diga que esse é o perfil mais comum e que a chance reduz, mas sem parecer definitivo; peça o CNIS para uma triagem inicial e diga que enviará o passo a passo. Não fale em DIRF agora, salvo se o lead perguntar.",
     );
   } else if (statesMultipleLinks(input.userText)) {
     turn.push(
-      "O lead já informou no próprio texto múltiplos vínculos ou fontes pagadoras. Não repita a pergunta essencial. Responda em até 2 frases e peça o CNIS como próximo passo, dizendo que enviará o passo a passo.",
+      "O lead já informou no próprio texto múltiplos vínculos ou fontes pagadoras. Não repita a pergunta essencial. Responda em até 2 frases e peça o CNIS como próximo passo, dizendo que primeiro enviará o passo a passo do CNIS e que as DIRFs/rendimentos serão usados depois para precisão.",
     );
   } else if (looksLikeKnowledgeYes(input.userText)) {
     turn.push(
