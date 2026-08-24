@@ -2483,6 +2483,12 @@ function CaseSidePanel({
     !templateAlreadyQueued &&
     !templateAlreadySent &&
     Boolean(conversation.phone || conversation.lead_phone);
+  const documentTypeTotals = documents.reduce<Map<string, number>>((acc, document) => {
+    const type = document.document_type ?? "other";
+    acc.set(type, (acc.get(type) ?? 0) + 1);
+    return acc;
+  }, new Map());
+  const documentTypeSeen = new Map<string, number>();
 
   return (
     <aside className="case-panel lis-side-panel">
@@ -2570,40 +2576,56 @@ function CaseSidePanel({
         <h3>Documentos do caso</h3>
         <p>CNIS e anexos recebidos pelo WhatsApp.</p>
         <div className="document-list">
-          {documents.map((document) => (
-            <button
-              key={document.id}
-              type="button"
-              className="document-row"
-              onClick={() => onOpenDocument(document.id)}
-            >
-              <FileText className="icon" />
-              <span>
-                <strong>{documentTypeLabel(document.document_type)}</strong>
-                <em>
-                  {document.mime_type ?? "arquivo"}
-                  {document.size_bytes
-                    ? ` · ${Math.round(document.size_bytes / 1024)} KB`
-                    : ""}
-                </em>
-              </span>
-              <span className="document-actions">
-                <span>Abrir</span>
-                <button
-                  type="button"
-                  className="document-download"
-                  aria-label="Baixar documento"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDownloadDocument(document.id);
-                  }}
-                >
-                  <Download className="tiny-icon" />
-                  Baixar
-                </button>
-              </span>
-            </button>
-          ))}
+          {documents.map((document) => {
+            const type = document.document_type ?? "other";
+            const count = (documentTypeSeen.get(type) ?? 0) + 1;
+            documentTypeSeen.set(type, count);
+            const total = documentTypeTotals.get(type) ?? 0;
+            const label =
+              total > 1
+                ? `${documentTypeLabel(document.document_type)} ${count}`
+                : documentTypeLabel(document.document_type);
+
+            return (
+              <button
+                key={document.id}
+                type="button"
+                className="document-row"
+                onClick={() => onOpenDocument(document.id)}
+              >
+                <FileText className="icon" />
+                <span>
+                  <strong>{label}</strong>
+                  <em>
+                    {document.original_filename?.trim() ||
+                      document.mime_type ||
+                      "arquivo"}
+                  </em>
+                  <em>
+                    {formatDate(document.created_at)}
+                    {document.size_bytes
+                      ? ` · ${Math.round(document.size_bytes / 1024)} KB`
+                      : ""}
+                  </em>
+                </span>
+                <span className="document-actions">
+                  <span>Abrir</span>
+                  <button
+                    type="button"
+                    className="document-download"
+                    aria-label="Baixar documento"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDownloadDocument(document.id);
+                    }}
+                  >
+                    <Download className="tiny-icon" />
+                    Baixar
+                  </button>
+                </span>
+              </button>
+            );
+          })}
           {!documents.length ? <EmptyState text="Nenhum documento recebido." compact /> : null}
         </div>
         {missingDocs.length > 0 ? (

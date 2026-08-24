@@ -69,7 +69,7 @@ Textos finais: jurídico + Meta approval. Rascunhos em `docs/META_OUTREACH.md`.
 | T0+24h sem reply | Template confiança (`ir_confianca`) |
 | T0+5d sem reply | Template explica INSS (`ir_explica_inss`) |
 | Depois | Parar; só reheat humano se histórico importado |
-| Na janela 24h, após 1ª resposta | Lembrete em texto (`IR_INWINDOW_NUDGE_ENABLED`; padrão 4h de silêncio) |
+| Na janela 24h, após envio do passo a passo e sem documento | Lembrete em texto (`IR_INWINDOW_NUDGE_ENABLED`; padrão 20h de silêncio, antes de fechar a janela) |
 
 ---
 
@@ -80,7 +80,7 @@ Textos finais: jurídico + Meta approval. Rascunhos em `docs/META_OUTREACH.md`.
 - Flag: `IR_FOLLOW_UP_WORKER_ENABLED=true` só com templates TRUST/EXPLAIN + opt-in ok
 - Step 2 padrão: **24h** (`IR_DRIP_STEP2_HOURS`)
 - Lembrete automático de documento: quando o PDF CNIS + DIRF é enviado, agenda `lembrete_envio_cnis_03` para a manhã seguinte, padrão **08:30** (`IR_DOCUMENT_REMINDER_HOUR` / `IR_DOCUMENT_REMINDER_MINUTE`). O worker só envia se ainda não houver CNIS/DIRF recebido e a conversa seguir em `qualifying` ou `waiting_documents`.
-- Lembrete dentro da janela: `backend/workers/in-window-nudge-worker.ts` (`IR_INWINDOW_NUDGE_ENABLED`, off por padrão)
+- Lembrete dentro da janela: `backend/workers/in-window-nudge-worker.ts` (`IR_INWINDOW_NUDGE_ENABLED`, off por padrão). Ele só dispara para conversas com passo a passo enviado (`cnis_guide`), status `qualifying`/`waiting_documents`, sem CNIS/DIRF salvo e dentro da janela de 24h. O atraso padrão é **20h** (`IR_DOCUMENT_INWINDOW_NUDGE_HOURS`) para lembrar antes de a janela livre fechar.
 - Cancel automático: 1ª resposta inbound cancela drips de abertura; opt-out cancela todos; documento recebido cancela lembrete de CNIS/DIRF.
 
 ---

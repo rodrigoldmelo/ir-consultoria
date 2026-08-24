@@ -1,5 +1,9 @@
 # CHANGELOG_AI — IR Consultoria
 
+## 2026-08-24 — Lembrete pré-24h e múltiplos prints de documentos
+
+- O worker de lembrete dentro da janela (`IR_INWINDOW_NUDGE_ENABLED`) deixou de ser genérico e passou a atuar só como lembrete documental: após o envio do passo a passo CNIS + DIRF, espera por padrão 20h (`IR_DOCUMENT_INWINDOW_NUDGE_HOURS`) e envia texto livre apenas se a conversa ainda estiver em qualificação/aguardando documentos e sem CNIS/DIRF salvo. Mídias recebidas durante takeover humano agora continuam sendo salvas/classificadas como documentos do caso, mas sem resposta automática da IA. A lateral de documentos diferencia múltiplos anexos do mesmo tipo, como prints sequenciais de DIRF/rendimentos.
+
 ## 2026-08-24 — Visualizador interno de anexos
 
 - Anexos de conversa agora abrem em um modal dentro do próprio painel IR, sem jogar o operador para uma nova aba. O visualizador suporta imagem, PDF, vídeo e áudio, tem fechamento por `Esc`/clique fora e botão **Baixar** com tentativa de download direto via blob antes do fallback para URL assinada.

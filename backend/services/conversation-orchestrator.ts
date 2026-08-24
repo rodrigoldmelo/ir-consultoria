@@ -183,6 +183,11 @@ export async function handleInboundWhatsApp(input: {
   }
 
   const honorific = honorificName(lead?.name) ?? honorificName(extracted);
+  const isMedia =
+    messageType === "image" ||
+    messageType === "document" ||
+    messageType === "audio" ||
+    messageType === "video";
 
   let inboundMessageId: string | null = null;
   if (conversation) {
@@ -220,6 +225,35 @@ export async function handleInboundWhatsApp(input: {
         summary: "Lead pediu opt-out durante takeover — agente permaneceu silencioso",
       });
       return { action: "opt_out_silent", note: "Opt-out registrado sem resposta automática" };
+    }
+    if (isMedia && input.mediaId) {
+      const stored = await storeInboundDocument({
+        conversationId: conversation.id,
+        leadId: conversation.lead_id,
+        phone: input.phone,
+        mediaId: input.mediaId,
+        caption: rawText || undefined,
+        filename: input.mediaFilename,
+        sourceMessageId: inboundMessageId,
+        expectedDocumentType: null,
+      });
+      if (stored) {
+        await cancelDocumentReminderForConversation(
+          conversation.id,
+          "document_received",
+        );
+        await recordAuditEvent({
+          entityType: "conversation",
+          entityId: conversation.id,
+          eventType: "media_received_while_human",
+          actorType: "webhook",
+          summary: `${stored.documentType} recebido durante takeover — agente silencioso`,
+        });
+        return {
+          action: "waiting_human_media_stored",
+          note: `${stored.documentType} salvo; agente pausado`,
+        };
+      }
     }
     await recordAuditEvent({
       entityType: "conversation",
@@ -315,12 +349,6 @@ export async function handleInboundWhatsApp(input: {
     await replyAndPersist(input.phone, conversation?.id, reply);
     return { action: "human_review", note: "Pedido de humano" };
   }
-
-  const isMedia =
-    messageType === "image" ||
-    messageType === "document" ||
-    messageType === "audio" ||
-    messageType === "video";
 
   if (isMedia && input.mediaId && conversation) {
     const stored = await storeInboundDocument({
