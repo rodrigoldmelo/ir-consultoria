@@ -3,6 +3,7 @@ import {
   findLeadByMetaId,
   insertLead,
 } from "../db/leads.js";
+import { isPhoneOptedOut } from "../db/opt-outs.js";
 import { isSupabaseConfigured } from "../services/supabase.js";
 import { normalizePhoneE164 } from "./phone.js";
 import type { IngestedLead } from "../types/index.js";
@@ -30,6 +31,18 @@ export async function ingestLead(
 
   if (lead.optInWhatsapp === false) {
     return { status: "rejected", reason: "no_whatsapp_opt_in" };
+  }
+
+  if (await isPhoneOptedOut(phone)) {
+    await recordAuditEvent({
+      entityType: "lead",
+      entityId: lead.metaLeadgenId,
+      eventType: "lead_suppressed_opt_out",
+      actorType: "webhook",
+      summary: "Lead ignorado porque o telefone está na supressão global de opt-out",
+      metadata: { phone, formId: lead.formId },
+    });
+    return { status: "rejected", reason: "opt_out" };
   }
 
   if (isSupabaseConfigured()) {

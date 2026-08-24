@@ -462,6 +462,10 @@ export async function listMessagesForPanel(
     message_type: string | null;
     external_message_id: string | null;
     delivery_status: string | null;
+    media_document_id?: string | null;
+    media_filename?: string | null;
+    media_mime_type?: string | null;
+    media_size_bytes?: number | null;
     created_at: string;
   }>
 > {
@@ -479,7 +483,50 @@ export async function listMessagesForPanel(
     console.error("[db/conversations] listMessagesForPanel", error.message);
     return [];
   }
-  return data ?? [];
+  const rows = data ?? [];
+  const { data: documents, error: documentsError } = await db
+    .from("ir_documents")
+    .select("id, source_message_id, original_filename, mime_type, size_bytes, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+
+  if (documentsError) {
+    console.error("[db/conversations] list message media", documentsError.message);
+    return rows;
+  }
+
+  const docsByMessage = new Map<string, Record<string, unknown>>();
+  const unlinkedDocs: Array<Record<string, unknown>> = [];
+  for (const doc of documents ?? []) {
+    const sourceMessageId =
+      typeof doc.source_message_id === "string" ? doc.source_message_id : "";
+    if (sourceMessageId) {
+      docsByMessage.set(sourceMessageId, doc);
+    } else {
+      unlinkedDocs.push(doc);
+    }
+  }
+
+  let fallbackDocIndex = 0;
+  return rows.map((message) => {
+    const isMedia = ["image", "audio", "video", "document"].includes(
+      String(message.message_type ?? ""),
+    );
+    const doc =
+      docsByMessage.get(String(message.id)) ??
+      (isMedia && message.role === "user"
+        ? unlinkedDocs[fallbackDocIndex++]
+        : undefined);
+    if (!doc) return message;
+    return {
+      ...message,
+      media_document_id: String(doc.id),
+      media_filename:
+        typeof doc.original_filename === "string" ? doc.original_filename : null,
+      media_mime_type: typeof doc.mime_type === "string" ? doc.mime_type : null,
+      media_size_bytes: doc.size_bytes ? Number(doc.size_bytes) : null,
+    };
+  });
 }
 
 export async function getMessageForConversation(

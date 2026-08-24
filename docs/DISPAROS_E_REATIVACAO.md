@@ -13,16 +13,32 @@ Organizar duas operações diferentes sem misturar com o funil automático de Le
 - Detalhe de **Conversas**: botão **Enviar primeiro contato** aparece na lateral e usa a mesma fila do worker para conversas sem histórico.
 - Se a conversa não tiver `lead_id`, o backend tenta achar lead por telefone. Se não encontrar, cria um lead operacional `panel_manual` para manter auditoria e evitar envio solto sem registro.
 
-## Próximo módulo: Disparos
+## Disparos
 
-Criar uma janela própria **Disparos** para listas novas de médicos:
+Primeira versão implementada na aba **Disparos** para listas novas de médicos:
 
 - Upload CSV com nome, telefone, email e médico(a).
-- Validação de telefone, duplicados, opt-out, já enviado e conversa existente.
-- Resumo antes de disparar: total importado, válidos, bloqueados, duplicados e estimativa de custo por template.
-- Modo manual: operador seleciona destinatários e envia.
-- Modo automático: cria lote aprovado e o worker dispara em ritmo controlado.
-- Métricas por lote: enfileirados, enviados, falhas, respostas, opt-out e avanço para CNIS.
+- Validação local de telefone e duplicados.
+- Custo por template editável na tela e estimativa antes de disparar.
+- Botão **Disparar elegíveis** chama `POST /api/ir/panel/outreach/batch`.
+- Backend revalida opt-out por telefone na tabela global `ir_opt_out_numbers`, duplicados e templates já enviados/enfileirados.
+- Backend cria/reaproveita leads `panel_batch` e usa a fila existente do worker para `contato_inicial`.
+
+## Opt-out global
+
+Quando alguém responde **Não tenho interesse**, **Não tenho mais interesse**, **parar**, **remover**, **descadastrar** ou variações, o telefone é salvo em `ir_opt_out_numbers`. A partir daí:
+
+- Lead Ads com o mesmo telefone são ignorados antes de enfileirar template.
+- Disparos em massa pulam o número automaticamente.
+- Botões manuais de primeiro contato não enfileiram template para esse telefone.
+- O worker faz uma checagem final antes de chamar a Meta, protegendo leads que já estavam em fila.
+- Se a pessoa chamar organicamente depois, a entrada ainda é aceita e a conversa pode seguir; a supressão continua valendo para novos disparos ativos.
+
+Próximos upgrades:
+
+- Persistir lotes em `ir_outreach_batches` e destinatários em `ir_outreach_recipients`.
+- Modo manual por seleção individual.
+- Métricas persistidas por lote: enfileirados, enviados, falhas, respostas, opt-out e avanço para CNIS.
 
 ## Base antiga
 

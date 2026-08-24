@@ -26,6 +26,7 @@ export const config = {
     process.env.IR_BIND_ADDRESS ??
     (process.env.IR_APP_ENV === "production" ? "127.0.0.1" : "0.0.0.0"),
   agentName: process.env.IR_AGENT_NAME ?? "IR Assistente",
+  panelOperatorName: process.env.IR_PANEL_OPERATOR_NAME ?? "Inglyd Reis",
   timezone: process.env.IR_DEFAULT_TIMEZONE ?? "America/Sao_Paulo",
   panelToken: stripEnvQuotes(process.env.IR_PANEL_TOKEN),
   panelLogin: {
@@ -70,6 +71,15 @@ export const config = {
     templateTrust: process.env.IR_WHATSAPP_TEMPLATE_TRUST ?? "",
     templateExplain: process.env.IR_WHATSAPP_TEMPLATE_EXPLAIN ?? "",
     templateReheat: process.env.IR_WHATSAPP_TEMPLATE_REHEAT ?? "",
+    templateCnisReminder:
+      process.env.IR_WHATSAPP_TEMPLATE_CNIS_REMINDER ??
+      "lembrete_envio_cnis_03",
+    templateContinueAnalysis:
+      process.env.IR_WHATSAPP_TEMPLATE_CONTINUE_ANALYSIS ??
+      "continuar_analise_inss_02",
+    templateResumeAnalysis:
+      process.env.IR_WHATSAPP_TEMPLATE_RESUME_ANALYSIS ??
+      "retomar_analise_inss_01",
   },
   advbox: {
     baseUrl: process.env.IR_ADVBOX_BASE_URL ?? "",

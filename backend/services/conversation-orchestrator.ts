@@ -1,5 +1,6 @@
 import { getLeadById, findLeadByPhone, insertLead, updateLeadName } from "../db/leads.js";
 import { recordAuditEvent } from "../db/audit.js";
+import { suppressPhone } from "../db/opt-outs.js";
 import {
   findOrCreateConversation,
   insertMessage,
@@ -15,7 +16,10 @@ import {
   generateFirstContactReply,
   isOpenAiConfigured,
 } from "./openai-agent.js";
-import { cancelDripForPhone } from "./drip.js";
+import {
+  cancelDocumentReminderForConversation,
+  cancelDripForPhone,
+} from "./drip.js";
 import { documentAckMessage, storeInboundDocument } from "./documents.js";
 import { normalizePhoneE164 } from "./phone.js";
 import {
@@ -180,11 +184,12 @@ export async function handleInboundWhatsApp(input: {
 
   const honorific = honorificName(lead?.name) ?? honorificName(extracted);
 
+  let inboundMessageId: string | null = null;
   if (conversation) {
-    await insertMessage({
+    inboundMessageId = await insertMessage({
       conversationId: conversation.id,
       role: "user",
-      text: rawText || `[${messageType}]`,
+      text: rawText || input.mediaFilename || `[${messageType}]`,
       messageType,
       externalMessageId: input.externalMessageId,
       deliveryStatus: "received",
@@ -198,7 +203,15 @@ export async function handleInboundWhatsApp(input: {
   if (conversation?.status === "waiting_human") {
     if (isOptOut(text)) {
       await cancelDripForPhone(input.phone, "opt_out");
-      await touchConversation(conversation.id, { status: "closed" });
+      await suppressPhone({
+        phone: input.phone,
+        source: "whatsapp_inbound",
+        reason: "opt_out_while_human",
+        lastMessageText: rawText,
+        conversationId: conversation.id,
+        leadId: conversation.lead_id,
+      });
+      await touchConversation(conversation.id, { status: "opt_out" });
       await recordAuditEvent({
         entityType: "conversation",
         entityId: conversation.id,
@@ -221,7 +234,15 @@ export async function handleInboundWhatsApp(input: {
   if (isOptOut(text)) {
     await cancelDripForPhone(input.phone, "opt_out");
     if (conversation) {
-      await touchConversation(conversation.id, { status: "closed" });
+      await suppressPhone({
+        phone: input.phone,
+        source: "whatsapp_inbound",
+        reason: "opt_out",
+        lastMessageText: rawText,
+        conversationId: conversation.id,
+        leadId: conversation.lead_id,
+      });
+      await touchConversation(conversation.id, { status: "opt_out" });
       await recordAuditEvent({
         entityType: "conversation",
         entityId: conversation.id,
@@ -309,10 +330,15 @@ export async function handleInboundWhatsApp(input: {
       mediaId: input.mediaId,
       caption: rawText || undefined,
       filename: input.mediaFilename,
+      sourceMessageId: inboundMessageId,
       expectedDocumentType: null,
     });
 
     if (stored) {
+      await cancelDocumentReminderForConversation(
+        conversation.id,
+        "document_received",
+      );
       await touchConversation(conversation.id, {
         status: stored.complete ? "waiting_human" : "waiting_documents",
       });

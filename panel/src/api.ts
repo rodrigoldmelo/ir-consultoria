@@ -171,6 +171,24 @@ export async function resumeConversation(id: string) {
   return res.json();
 }
 
+export async function sendConversationFollowUp(
+  id: string,
+  type: "cnis_reminder" | "continue_analysis" | "resume_analysis",
+) {
+  const res = await panelFetch(`/api/ir/panel/conversations/${id}/follow-up`, {
+    method: "POST",
+    body: JSON.stringify({ type }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `follow_up_${res.status}`);
+  return body as {
+    ok: true;
+    phone: string;
+    templateName: string;
+    externalMessageId: string;
+  };
+}
+
 export async function sendHumanReply(
   id: string,
   text: string,
@@ -219,6 +237,23 @@ export async function deletePanelMessage(
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error ?? `delete_message_${res.status}`);
   return body as { ok: boolean; scope: "panel_only" };
+}
+
+export async function sendMessageReaction(
+  conversationId: string,
+  messageId: string,
+  emoji: string,
+) {
+  const res = await panelFetch(
+    `/api/ir/panel/conversations/${conversationId}/messages/${messageId}/reaction`,
+    {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
+    },
+  );
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `reaction_${res.status}`);
+  return body as { ok: boolean; externalMessageId?: string };
 }
 
 export async function decideReheat(
@@ -273,6 +308,35 @@ export async function sendConversationInitialOutreach(conversationId: string) {
     phone: string;
     metaLeadgenId: string;
     leadId: string;
+  };
+}
+
+export async function sendOutreachBatch(
+  recipients: Array<{
+    name?: string;
+    phone?: string;
+    email?: string;
+    isDoctor?: boolean | null;
+  }>,
+) {
+  const res = await panelFetch("/api/ir/panel/outreach/batch", {
+    method: "POST",
+    body: JSON.stringify({ recipients }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `outreach_batch_${res.status}`);
+  return body as {
+    ok: true;
+    templateName: string;
+    received: number;
+    queued: number;
+    created: number;
+    reused: number;
+    skipped: Array<{
+      phone?: string | null;
+      name?: string | null;
+      reason: string;
+    }>;
   };
 }
 

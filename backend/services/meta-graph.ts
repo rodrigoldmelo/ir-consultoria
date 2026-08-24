@@ -323,6 +323,56 @@ export async function sendWhatsAppText(input: {
   };
 }
 
+/** Reação nativa do WhatsApp para uma mensagem existente. */
+export async function sendWhatsAppReaction(input: {
+  toE164: string;
+  messageId: string;
+  emoji: string;
+}): Promise<
+  | { ok: true; externalMessageId: string }
+  | { ok: false; permanent: boolean; error: string; status?: number }
+> {
+  const { phoneNumberId, whatsappToken } = config.meta;
+  if (!phoneNumberId || !whatsappToken) {
+    console.warn("[meta-graph] WA not configured — stub reaction");
+    return { ok: true, externalMessageId: `stub_reaction_${Date.now()}` };
+  }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: normalizeWaRecipient(input.toE164),
+    type: "reaction",
+    reaction: {
+      message_id: input.messageId,
+      emoji: input.emoji,
+    },
+  };
+
+  const result = await graphFetch<{ messages?: Array<{ id?: string }> }>(
+    `${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      permanent: result.status === 400 || result.status === 401 || result.status === 403,
+      error: result.error,
+      status: result.status,
+    };
+  }
+
+  return {
+    ok: true,
+    externalMessageId: result.data.messages?.[0]?.id ?? `sent_reaction_${Date.now()}`,
+  };
+}
+
 let cachedPdfMediaId: { id: string; at: number } | null = null;
 const MEDIA_ID_TTL_MS = 20 * 24 * 3600_000;
 

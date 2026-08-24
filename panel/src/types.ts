@@ -2,6 +2,7 @@ export type PanelPage =
   | "dashboard"
   | "leads"
   | "conversas"
+  | "disparos"
   | "reaquecer"
   | "importar"
   | "config";
@@ -74,5 +75,9 @@ export type MessageRow = {
   message_type?: string | null;
   external_message_id?: string | null;
   delivery_status?: string | null;
+  media_document_id?: string | null;
+  media_filename?: string | null;
+  media_mime_type?: string | null;
+  media_size_bytes?: number | null;
   created_at: string;
 };

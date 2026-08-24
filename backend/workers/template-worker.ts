@@ -12,6 +12,7 @@ import {
   type IrLeadRow,
 } from "../db/leads.js";
 import { config } from "../config.js";
+import { isPhoneOptedOut } from "../db/opt-outs.js";
 import { scheduleDripAfterInitialTemplate } from "../services/drip.js";
 import { dispatchInitialTemplate } from "../services/template-dispatcher.js";
 import { renderTemplateBody } from "../services/template-copy.js";
@@ -43,6 +44,19 @@ async function processLead(lead: IrLeadRow): Promise<void> {
   if (!lead.phone) {
     await updateLeadStatusById(lead.id, "invalid");
     console.warn("[template-worker] lead sem telefone", lead.meta_leadgen_id);
+    return;
+  }
+
+  if (await isPhoneOptedOut(lead.phone)) {
+    await updateLeadStatusById(lead.id, "opt_out");
+    await recordAuditEvent({
+      entityType: "lead",
+      entityId: lead.meta_leadgen_id,
+      eventType: "template_suppressed_opt_out",
+      summary: "Template não enviado porque o telefone está na supressão global de opt-out",
+      metadata: { leadId: lead.id, phone: lead.phone },
+    });
+    console.info("[template-worker] suppressed opt-out", lead.meta_leadgen_id);
     return;
   }
 

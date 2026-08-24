@@ -16,11 +16,15 @@ import {
   headerTokenMatches,
   readSession,
 } from "../services/panel-session.js";
-import { REQUIRED_DOCUMENT_TYPES } from "../services/documents.js";
+import {
+  REQUIRED_DOCUMENT_TYPES,
+  storePanelOutboundMedia,
+} from "../services/documents.js";
 import {
   isMetaGraphConfigured,
   isMetaWhatsAppConfigured,
   sendWhatsAppMedia,
+  sendWhatsAppReaction,
   sendWhatsAppText,
 } from "../services/meta-graph.js";
 import { isOpenAiConfigured } from "../services/openai-agent.js";
@@ -32,6 +36,11 @@ import {
   sendTestDripTemplate,
 } from "../services/test-outreach.js";
 import { importWhatsAppCsv } from "../services/whatsapp-csv-import.js";
+import { queueInitialOutreachBatch } from "../services/outreach-batch.js";
+import {
+  sendManualFollowUp,
+  type ManualFollowUpType,
+} from "../services/manual-follow-up.js";
 import { decideReheat } from "../services/reheat-decision.js";
 import { runReheatBatch } from "../services/reheat-scorer.js";
 
@@ -64,6 +73,9 @@ router.get("/status", (_req, res) => {
     templateInitial: Boolean(config.meta.templateInitial),
     templateTrust: Boolean(config.meta.templateTrust),
     templateExplain: Boolean(config.meta.templateExplain),
+    templateCnisReminder: Boolean(config.meta.templateCnisReminder),
+    templateContinueAnalysis: Boolean(config.meta.templateContinueAnalysis),
+    templateResumeAnalysis: Boolean(config.meta.templateResumeAnalysis),
     publicApiUrl: config.publicApiUrl,
     webhookWhatsapp: `${config.publicApiUrl}/api/ir/webhooks/whatsapp`,
     webhookLeadAds: `${config.publicApiUrl}/api/ir/webhooks/meta-leads`,
@@ -114,6 +126,27 @@ router.post("/conversations/:id/outreach", async (req, res) => {
   } catch (err) {
     console.error("[panel/conversation-outreach]", err);
     res.status(500).json({ error: "conversation_outreach_failed" });
+  }
+});
+
+router.post("/outreach/batch", async (req, res) => {
+  try {
+    const recipients = Array.isArray(req.body?.recipients)
+      ? req.body.recipients.slice(0, 500)
+      : [];
+    if (!recipients.length) {
+      res.status(400).json({ error: "missing_recipients" });
+      return;
+    }
+    const result = await queueInitialOutreachBatch({ recipients });
+    if (!result.ok) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("[panel/outreach-batch]", err);
+    res.status(500).json({ error: "outreach_batch_failed" });
   }
 });
 
@@ -384,6 +417,33 @@ router.post("/conversations/:id/resume", async (req, res) => {
   }
 });
 
+router.post("/conversations/:id/follow-up", async (req, res) => {
+  try {
+    const rawType = String(req.body?.type ?? "");
+    const allowed: ManualFollowUpType[] = [
+      "cnis_reminder",
+      "continue_analysis",
+      "resume_analysis",
+    ];
+    if (!allowed.includes(rawType as ManualFollowUpType)) {
+      res.status(400).json({ error: "invalid_follow_up_type" });
+      return;
+    }
+    const result = await sendManualFollowUp({
+      conversationId: String(req.params.id),
+      type: rawType as ManualFollowUpType,
+    });
+    if (!result.ok) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("[panel/follow-up]", err);
+    res.status(500).json({ error: "follow_up_failed" });
+  }
+});
+
 /** Reply humano na janela 24h. Fora da janela a Meta recusa — use template de reheat. */
 router.post("/conversations/:id/reply", async (req, res) => {
   try {
@@ -399,12 +459,17 @@ router.post("/conversations/:id/reply", async (req, res) => {
       return;
     }
 
+    const operator = config.panelOperatorName.trim();
+    const outboundText =
+      operator && !text.toLowerCase().startsWith(`${operator.toLowerCase()}:`)
+        ? `*${operator}:*\n${text}`
+        : text;
     const quoted = replyToMessageId
       ? await getMessageForConversation(conversation.id, replyToMessageId)
       : null;
     const sent = await sendWhatsAppText({
       toE164: conversation.phone,
-      text,
+      text: outboundText,
       contextMessageId: quoted?.external_message_id ?? null,
     });
     if (!sent.ok) {
@@ -415,7 +480,7 @@ router.post("/conversations/:id/reply", async (req, res) => {
     await insertMessage({
       conversationId: conversation.id,
       role: "human",
-      text,
+      text: outboundText,
       messageType: "text",
       externalMessageId: sent.externalMessageId,
       deliveryStatus: "sent",
@@ -457,12 +522,17 @@ router.post("/conversations/:id/media", async (req, res) => {
     const quoted = replyToMessageId
       ? await getMessageForConversation(conversation.id, replyToMessageId)
       : null;
+    const operator = config.panelOperatorName.trim();
+    const outboundCaption =
+      caption && operator && !caption.toLowerCase().startsWith(`${operator.toLowerCase()}:`)
+        ? `*${operator}:*\n${caption}`
+        : caption;
     const sent = await sendWhatsAppMedia({
       toE164: conversation.phone,
       buffer,
       filename,
       mimeType,
-      caption: caption || undefined,
+      caption: outboundCaption || undefined,
       contextMessageId: quoted?.external_message_id ?? null,
     });
     if (!sent.ok) {
@@ -470,14 +540,24 @@ router.post("/conversations/:id/media", async (req, res) => {
       return;
     }
 
-    await insertMessage({
+    const messageId = await insertMessage({
       conversationId: conversation.id,
       role: "human",
-      text: caption || `[arquivo: ${filename}]`,
+      text: outboundCaption || `[arquivo: ${filename}]`,
       messageType: sent.messageType,
       externalMessageId: sent.externalMessageId,
       deliveryStatus: "sent",
     });
+    if (messageId) {
+      await storePanelOutboundMedia({
+        conversationId: conversation.id,
+        leadId: conversation.lead_id,
+        buffer,
+        filename,
+        mimeType,
+        sourceMessageId: messageId,
+      });
+    }
     await touchConversation(conversation.id, {
       status: "waiting_human",
       lastOutbound: true,
@@ -490,6 +570,50 @@ router.post("/conversations/:id/media", async (req, res) => {
   } catch (err) {
     console.error("[panel/media]", err);
     res.status(500).json({ error: "media_failed" });
+  }
+});
+
+router.post("/conversations/:id/messages/:messageId/reaction", async (req, res) => {
+  try {
+    const emoji = String(req.body?.emoji ?? "").trim();
+    if (!emoji) {
+      res.status(400).json({ error: "missing_emoji" });
+      return;
+    }
+
+    const conversation = await getConversationById(String(req.params.id));
+    if (!conversation) {
+      res.status(404).json({ error: "conversation_not_found" });
+      return;
+    }
+
+    const message = await getMessageForConversation(
+      conversation.id,
+      String(req.params.messageId),
+    );
+    if (!message) {
+      res.status(404).json({ error: "message_not_found" });
+      return;
+    }
+    if (!message.external_message_id) {
+      res.status(400).json({ error: "message_without_whatsapp_id" });
+      return;
+    }
+
+    const sent = await sendWhatsAppReaction({
+      toE164: conversation.phone,
+      messageId: message.external_message_id,
+      emoji,
+    });
+    if (!sent.ok) {
+      res.status(400).json({ error: sent.error });
+      return;
+    }
+
+    res.json({ ok: true, externalMessageId: sent.externalMessageId });
+  } catch (err) {
+    console.error("[panel/reaction]", err);
+    res.status(500).json({ error: "reaction_failed" });
   }
 });
 

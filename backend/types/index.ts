@@ -16,6 +16,7 @@ export type ConversationStatus =
   | "qualifying"
   | "waiting_documents"
   | "waiting_human"
+  | "opt_out"
   | "closed";
 
 export type CaseStatus =

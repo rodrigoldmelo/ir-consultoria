@@ -38,7 +38,23 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   "audio/ogg": "ogg",
   "audio/opus": "opus",
   "audio/webm": "webm",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
 };
+
+function extensionForMime(mimeType: string, filename?: string | null): string {
+  const fromName = filename
+    ?.split(".")
+    .pop()
+    ?.toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  if (fromName) return fromName;
+  return (
+    EXTENSION_BY_MIME[mimeType] ??
+    mimeType.split("/")[1]?.replace(/[^a-z0-9]/g, "") ??
+    "bin"
+  );
+}
 
 /** Palpite pelo texto/legenda/contexto; classificação final segue revisão humana. */
 export function guessDocumentType(
@@ -103,6 +119,7 @@ export async function storeInboundDocument(input: {
   mediaId: string;
   caption?: string;
   filename?: string;
+  sourceMessageId?: string | null;
   expectedDocumentType?: DocumentType | null;
 }): Promise<StoredDocument | null> {
   const db = getSupabaseAdmin();
@@ -132,10 +149,7 @@ export async function storeInboundDocument(input: {
   if (!irCase) return null;
 
   const sha256 = createHash("sha256").update(media.buffer).digest("hex");
-  const extension =
-    EXTENSION_BY_MIME[media.mimeType] ??
-    media.mimeType.split("/")[1]?.replace(/[^a-z0-9]/g, "") ??
-    "bin";
+  const extension = extensionForMime(media.mimeType, input.filename);
   const existingBeforeInsert = await listDocumentsForCase(irCase.id);
   const presentBeforeInsert = new Set(
     existingBeforeInsert.map((d) => d.document_type),
@@ -172,6 +186,7 @@ export async function storeInboundDocument(input: {
       mime_type: media.mimeType,
       size_bytes: media.sizeBytes,
       sha256,
+      source_message_id: input.sourceMessageId ?? null,
       classification_status: "auto_guess",
     })
     .select("id")
@@ -206,6 +221,63 @@ export async function storeInboundDocument(input: {
     missing: [...missing],
     complete,
   };
+}
+
+export async function storePanelOutboundMedia(input: {
+  conversationId: string;
+  leadId?: string | null;
+  buffer: Buffer;
+  filename: string;
+  mimeType: string;
+  sourceMessageId: string;
+}): Promise<string | null> {
+  const db = getSupabaseAdmin();
+  if (!db) return null;
+
+  const irCase = await findOrCreateCaseForConversation({
+    conversationId: input.conversationId,
+    leadId: input.leadId,
+  });
+  if (!irCase) return null;
+
+  const sha256 = createHash("sha256").update(input.buffer).digest("hex");
+  const extension = extensionForMime(input.mimeType, input.filename);
+  const storagePath = `${irCase.id}/panel-${sha256.slice(0, 12)}.${extension}`;
+  const bucket = config.supabase.documentsBucket;
+
+  const upload = await db.storage.from(bucket).upload(storagePath, input.buffer, {
+    contentType: input.mimeType,
+    upsert: true,
+  });
+  if (upload.error) {
+    console.error("[documents] outbound upload", upload.error.message);
+    return null;
+  }
+
+  const { data: inserted, error } = await db
+    .from("ir_documents")
+    .insert({
+      case_id: irCase.id,
+      conversation_id: input.conversationId,
+      document_type: "other",
+      storage_bucket: bucket,
+      storage_path: storagePath,
+      original_filename: input.filename,
+      mime_type: input.mimeType,
+      size_bytes: input.buffer.byteLength,
+      sha256,
+      source_message_id: input.sourceMessageId,
+      classification_status: "panel_outbound_media",
+    })
+    .select("id")
+    .single();
+
+  if (error || !inserted) {
+    console.error("[documents] outbound insert", error?.message);
+    return null;
+  }
+
+  return inserted.id;
 }
 
 const LABELS: Record<string, string> = {

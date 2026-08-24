@@ -75,12 +75,36 @@ Botões: Quero entender / Parar
 
 Env: `IR_WHATSAPP_TEMPLATE_EXPLAIN=ir_explica_inss`
 
+### #4 Lembrete CNIS — aprovado na Meta como `lembrete_envio_cnis_03` (pt_BR, UTILITY)
+
+```text
+Olá, {{1}}, tudo bem? Passando para lembrar sobre o envio do CNIS (Extrato de Contribuições) e das DIRF's/rendimentos.
+
+Com esses documentos, nossa equipe consegue fazer uma análise mais precisa sobre possível restituição de contribuições ao INSS.
+
+Se tiver qualquer dúvida para baixar, posso te ajudar por aqui.
+```
+
+Env: `IR_WHATSAPP_TEMPLATE_CNIS_REMINDER=lembrete_envio_cnis_03`
+
+### #5 Continuar análise — aprovado na Meta como `continuar_analise_inss_02` (pt_BR, UTILITY)
+
+Usado no botão **Continuar análise** do detalhe da conversa.
+
+Env: `IR_WHATSAPP_TEMPLATE_CONTINUE_ANALYSIS=continuar_analise_inss_02`
+
+### #6 Retomar análise — aprovado na Meta como `retomar_analise_inss_01` (pt_BR, UTILITY)
+
+Usado no botão **Retomar análise** do detalhe da conversa.
+
+Env: `IR_WHATSAPP_TEMPLATE_RESUME_ANALYSIS=retomar_analise_inss_01`
+
 ## Como criar na Meta (clique a clique)
 
 1. Abra [business.facebook.com](https://business.facebook.com) com a conta da **IR** (não a da V&C/Lis).
 2. **WhatsApp Manager** → a WABA da IR → **Modelos de mensagem** → **Criar modelo**.
 3. Categoria **Utilidade**. Idioma **Português (BR)**.
-4. Nome exatamente `ir_confianca` (depois outro modelo `ir_explica_inss`).
+4. Nome exatamente `ir_confianca` (depois outros modelos `ir_explica_inss`, `lembrete_envio_cnis_03`, `continuar_analise_inss_02` e `retomar_analise_inss_01`).
 5. Cole o corpo acima. Variável `{{1}}` = primeiro nome.
 6. Botões de resposta rápida com os textos indicados.
 7. Envie para análise. Só teste o botão do painel **depois** de **Aprovado**.
@@ -89,6 +113,9 @@ Env: `IR_WHATSAPP_TEMPLATE_EXPLAIN=ir_explica_inss`
 ```env
 IR_WHATSAPP_TEMPLATE_TRUST=ir_confianca
 IR_WHATSAPP_TEMPLATE_EXPLAIN=ir_explica_inss
+IR_WHATSAPP_TEMPLATE_CNIS_REMINDER=lembrete_envio_cnis_03
+IR_WHATSAPP_TEMPLATE_CONTINUE_ANALYSIS=continuar_analise_inss_02
+IR_WHATSAPP_TEMPLATE_RESUME_ANALYSIS=retomar_analise_inss_01
 IR_DRIP_STEP2_HOURS=24
 IR_DRIP_STEP3_HOURS=120
 IR_FOLLOW_UP_WORKER_ENABLED=true

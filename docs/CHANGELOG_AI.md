@@ -1,5 +1,33 @@
 # CHANGELOG_AI — IR Consultoria
 
+## 2026-08-24 — Reações por emoji no WhatsApp
+
+- O detalhe da conversa ganhou reações rápidas nas mensagens recebidas do lead (`👍`, `✅`, `🙏`). O painel chama a Cloud API com mensagem `reaction` usando o `wamid` salvo em `external_message_id`; quando a mensagem não tem ID do WhatsApp, a reação não aparece. A implementação é isolada da IA e não cria resposta textual no histórico.
+
+## 2026-08-24 — Preview de anexos e mídia inline
+
+- Corrigido o envio humano de anexos no painel: áudio/imagem/vídeo/arquivo agora fica em prévia no composer antes do envio, aceita legenda no texto e só dispara quando o atendente confirma em **Enviar**. Mídias enviadas pelo painel passam a ser salvas no storage privado com vínculo à mensagem para renderizar imagem/vídeo/áudio dentro da conversa via URL assinada, sem aparecer como documento pendente do caso.
+
+## 2026-08-24 — Lembrete automático de documentos e ajustes visuais
+
+- O envio automático do passo a passo CNIS + DIRF agora agenda um lembrete via template `lembrete_envio_cnis_03` para a manhã seguinte (`IR_DOCUMENT_REMINDER_HOUR`/`IR_DOCUMENT_REMINDER_MINUTE`, padrão 08:30). O worker só envia se a conversa ainda estiver em qualificação/aguardando documentos, sem CNIS/DIRF recebidos e sem opt-out; documentos recebidos cancelam o lembrete. No painel, anexos humanos foram agrupados em um botão “+”, mensagens recebidas mostram o nome do lead no cabeçalho da bolha e as cores dos estados foram ajustadas: fechado/opt-out em vermelho, takeover humano em azul e qualificação em verde claro.
+
+## 2026-08-24 — UX de takeover, janela Meta e mídias
+
+- A conversa da IR ganhou alerta visual quando a janela livre de 24h da Meta está fechada, orientando o uso dos templates aprovados (**Lembrete CNIS**, **Continuar análise** e **Retomar análise**) em vez de texto livre. O composer humano passou a enviar com `Enter` e quebrar linha com `Shift+Enter`, ganhou gravação de áudio pelo microfone, mantém anexos de áudio/imagem/vídeo/documento e renderiza cartões de mídia na timeline com abertura do arquivo quando houver mídia salva no bucket. Respostas humanas agora são prefixadas no WhatsApp com o atendente configurado em `IR_PANEL_OPERATOR_NAME` (fallback `Inglyd Reis`), e o takeover segue garantido por `waiting_human`: o agente permanece silencioso até **Devolver para IA**.
+
+## 2026-08-24 — Follow-ups manuais na conversa
+
+- A barra superior do detalhe da conversa ganhou botões manuais de follow-up: **Lembrete CNIS**, **Continuar análise** e **Retomar análise**. O backend expõe `POST /api/ir/panel/conversations/:id/follow-up`, envia template WhatsApp pela Cloud API, registra a mensagem no histórico e atualiza a conversa. Os templates aprovados usados por padrão são `lembrete_envio_cnis_03`, `continuar_analise_inss_02` e `retomar_analise_inss_01`, com envs opcionais para override na VPS.
+
+## 2026-08-24 — Supressão global de opt-out
+
+- Adicionada a tabela `ir_opt_out_numbers` para salvar telefones que responderem opt-out (“Não tenho interesse”, “parar”, “remover” etc.) e impedir novos disparos ativos para o mesmo número, mesmo que ele reapareça em outra planilha, lote ou formulário. O orquestrador registra o opt-out na lista global, marca leads relacionados como `opt_out` e mantém a exceção de contato orgânico: se a própria pessoa chamar depois, o inbound continua sendo processado; a trava atua sobre Lead Ads/template worker/disparos manuais e em massa.
+
+## 2026-08-21 — Aba Disparos
+
+- Criada a aba **Disparos** no painel IR para listas novas: upload CSV, leitura de colunas `nome/telefone/email/medico`, validação local de telefone e duplicados, custo por template editável, estimativa do lote, prévia em tabela e ação **Disparar elegíveis**. O backend ganhou `POST /api/ir/panel/outreach/batch`, que revalida contatos, bloqueia opt-out e templates já enviados/enfileirados, cria ou reaproveita leads `panel_batch` e usa o worker existente para enfileirar `contato_inicial` sem envio solto pelo browser.
+
 ## 2026-08-21 — Contato inicial pelo detalhe da conversa
 
 - Adicionado `POST /api/ir/panel/conversations/:id/outreach` para enfileirar o template inicial aprovado (`contato_inicial`) a partir do detalhe da conversa. O backend reaproveita o lead vinculado, tenta localizar por telefone e, se necessário, cria um lead operacional mínimo `panel_manual` para o worker atual disparar com auditoria. A coluna lateral de Conversas ganhou o botão **Enviar primeiro contato**, habilitado para conversas sem histórico e bloqueado quando o template já foi enviado/enfileirado.

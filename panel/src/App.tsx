@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Mic,
   Phone,
+  Plus,
   RefreshCw,
   Reply,
   Save,
@@ -53,9 +54,12 @@ import {
   resumeConversation,
   runReheat,
   sendConversationInitialOutreach,
+  sendConversationFollowUp,
   sendHumanMedia,
   sendHumanReply,
   sendLeadInitialOutreach,
+  sendMessageReaction,
+  sendOutreachBatch,
   sendTestDrip,
   sendTestOutreach,
   takeoverConversation,
@@ -78,12 +82,47 @@ type NavItem = {
   icon: LucideIcon;
 };
 
-type StatusTone = "default" | "success" | "warning" | "danger" | "muted";
+type StatusTone = "default" | "success" | "warning" | "danger" | "muted" | "info" | "soft";
+
+type PendingAttachment = {
+  file: File;
+  url: string;
+  kind: "image" | "audio" | "video" | "file";
+};
+
+type OutreachCsvRow = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  isDoctor: boolean | null;
+  status: "eligible" | "invalid" | "duplicate";
+  reason: string;
+};
+
+type OutreachBatchSummary = {
+  templateName: string;
+  received: number;
+  queued: number;
+  created: number;
+  reused: number;
+  skipped: Array<{
+    phone?: string | null;
+    name?: string | null;
+    reason: string;
+  }>;
+};
+
+type ConversationFollowUpType =
+  | "cnis_reminder"
+  | "continue_analysis"
+  | "resume_analysis";
 
 const NAV: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "conversas", label: "Conversas", icon: MessageSquare },
   { id: "leads", label: "Leads", icon: Users },
+  { id: "disparos", label: "Disparos", icon: Send },
   { id: "reaquecer", label: "Reaquecer", icon: History },
   { id: "importar", label: "Importar histórico", icon: Upload },
   { id: "config", label: "Configuração", icon: Settings },
@@ -118,16 +157,18 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_TONES: Record<string, StatusTone> = {
   awaiting_first_reply: "warning",
-  qualifying: "default",
+  qualifying: "soft",
   waiting_documents: "warning",
   documents_partial: "warning",
   documents_complete: "success",
-  waiting_human: "danger",
+  waiting_human: "info",
   template_queued: "muted",
   template_sending: "muted",
   template_sent: "success",
-  opt_out: "muted",
-  closed: "success",
+  opt_out: "danger",
+  closed: "danger",
+  client: "success",
+  converted_to_case: "success",
 };
 
 const IR_AGENT_PROMPT_PREVIEW = `Você é o agente da IR Consultoria para leads médicos com possível indício de Restituição do INSS.
@@ -188,6 +229,16 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   const [conversationOutreachBusyId, setConversationOutreachBusyId] = useState<string | null>(
     null,
   );
+  const [outreachRows, setOutreachRows] = useState<OutreachCsvRow[]>([]);
+  const [outreachFilename, setOutreachFilename] = useState("");
+  const [outreachCost, setOutreachCost] = useState("0,35");
+  const [outreachBusy, setOutreachBusy] = useState(false);
+  const [outreachSummary, setOutreachSummary] =
+    useState<OutreachBatchSummary | null>(null);
+  const [followUpBusy, setFollowUpBusy] = useState<ConversationFollowUpType | null>(
+    null,
+  );
+  const [reactionBusyId, setReactionBusyId] = useState<string | null>(null);
   const [testPhone, setTestPhone] = useState("41984837507");
   const [testName, setTestName] = useState("Rodrigo");
   const [testBusy, setTestBusy] = useState<"outreach" | "trust" | "explain" | null>(
@@ -437,6 +488,23 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  async function onSendConversationFollowUp(type: ConversationFollowUpType) {
+    if (!selectedConvId) return;
+    setFollowUpBusy(type);
+    setActionMsg("");
+    setError("");
+    try {
+      const result = await sendConversationFollowUp(selectedConvId, type);
+      setActionMsg(`Follow-up ${result.templateName} enviado.`);
+      await refresh();
+      await refreshConversationDetail(selectedConvId);
+    } catch (err) {
+      setError(toErrorMessage(err));
+    } finally {
+      setFollowUpBusy(null);
+    }
+  }
+
   async function onSendReply() {
     if (!selectedConvId || !replyDraft.trim()) return;
     setReplyBusy(true);
@@ -456,7 +524,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     }
   }
 
-  async function onSendMedia(file: File | null) {
+  async function onSendMedia(file: File | null, caption?: string) {
     if (!selectedConvId || !file) return;
     if (file.size > 3_800_000) {
       setError("Arquivo maior que o limite atual de 3,8 MB.");
@@ -470,7 +538,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         filename: file.name,
         mimeType: file.type || "application/octet-stream",
         base64,
-        caption: replyDraft.trim() || undefined,
+        caption: caption?.trim() || replyDraft.trim() || undefined,
         replyToMessageId: replyToMessage?.id,
       });
       setReplyDraft("");
@@ -501,6 +569,21 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       await refresh();
     } catch (err) {
       setError(toErrorMessage(err));
+    }
+  }
+
+  async function onSendReaction(messageId: string, emoji: string) {
+    if (!selectedConvId) return;
+    setReactionBusyId(messageId);
+    setActionMsg("");
+    setError("");
+    try {
+      await sendMessageReaction(selectedConvId, messageId, emoji);
+      setActionMsg(`Reação ${emoji} enviada.`);
+    } catch (err) {
+      setError(toErrorMessage(err));
+    } finally {
+      setReactionBusyId(null);
     }
   }
 
@@ -565,6 +648,53 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       setError(toErrorMessage(err));
     } finally {
       setLeadOutreachBusyId(null);
+    }
+  }
+
+  async function onOutreachCsvFile(file: File | null) {
+    if (!file) return;
+    setError("");
+    setActionMsg("");
+    setOutreachSummary(null);
+    try {
+      const text = await file.text();
+      const rows = parseOutreachCsv(text);
+      setOutreachRows(rows);
+      setOutreachFilename(file.name);
+      setActionMsg(`Lista analisada: ${rows.length} linhas encontradas.`);
+    } catch (err) {
+      setError(toErrorMessage(err));
+    }
+  }
+
+  async function onOutreachBatchSend(rows: OutreachCsvRow[]) {
+    const eligible = rows.filter((row) => row.status === "eligible");
+    if (!eligible.length) return;
+    const ok = window.confirm(
+      `Enfileirar contato_inicial para ${eligible.length} contatos elegíveis?`,
+    );
+    if (!ok) return;
+    setOutreachBusy(true);
+    setActionMsg("");
+    setError("");
+    try {
+      const result = await sendOutreachBatch(
+        eligible.map((row) => ({
+          name: row.name,
+          phone: row.phone,
+          email: row.email,
+          isDoctor: row.isDoctor,
+        })),
+      );
+      setOutreachSummary(result);
+      setActionMsg(
+        `Disparo criado: ${result.queued} contatos enfileirados no template ${result.templateName}.`,
+      );
+      await refresh();
+    } catch (err) {
+      setError(toErrorMessage(err));
+    } finally {
+      setOutreachBusy(false);
     }
   }
 
@@ -667,12 +797,15 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             replyBusy={replyBusy}
             mediaBusy={mediaBusy}
             conversationOutreachBusyId={conversationOutreachBusyId}
+            followUpBusy={followUpBusy}
+            reactionBusyId={reactionBusyId}
             onFilter={setConversationFilter}
             onSearch={setConversationSearch}
             onSelect={setSelectedConvId}
             onConversationInitialOutreach={(conversation) =>
               void onConversationInitialOutreach(conversation)
             }
+            onSendFollowUp={(type) => void onSendConversationFollowUp(type)}
             onTakeover={() => void onTakeover()}
             onResume={() => void onResume()}
             onOpenDocument={(id) => void onOpenDocument(id)}
@@ -682,6 +815,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             onSendReply={() => void onSendReply()}
             onSendMedia={(file) => void onSendMedia(file)}
             onDeleteMessage={(id) => void onDeleteMessage(id)}
+            onReact={(id, emoji) => void onSendReaction(id, emoji)}
           />
         ) : null}
 
@@ -690,6 +824,19 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             leads={leads}
             busyLeadId={leadOutreachBusyId}
             onSendInitial={(lead) => void onLeadInitialOutreach(lead)}
+          />
+        ) : null}
+
+        {page === "disparos" ? (
+          <OutreachPage
+            rows={outreachRows}
+            filename={outreachFilename}
+            costPerTemplate={outreachCost}
+            busy={outreachBusy}
+            summary={outreachSummary}
+            onCostChange={setOutreachCost}
+            onFile={(file) => void onOutreachCsvFile(file)}
+            onSend={() => void onOutreachBatchSend(outreachRows)}
           />
         ) : null}
 
@@ -1008,6 +1155,33 @@ function Dashboard({
   );
 }
 
+function MetricCard({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number | string;
+  hint: string;
+  icon: LucideIcon;
+  tone?: string;
+}) {
+  return (
+    <article className={tone === "danger" ? "metric-card attention" : "metric-card"}>
+      <div className="metric-icon">
+        <Icon className="icon" />
+      </div>
+      <div>
+        <p>{label}</p>
+        <strong>{value}</strong>
+        <span>{hint}</span>
+      </div>
+    </article>
+  );
+}
+
 function ConversationsPage({
   conversations,
   allConversations,
@@ -1024,10 +1198,13 @@ function ConversationsPage({
   replyBusy,
   mediaBusy,
   conversationOutreachBusyId,
+  followUpBusy,
+  reactionBusyId,
   onFilter,
   onSearch,
   onSelect,
   onConversationInitialOutreach,
+  onSendFollowUp,
   onTakeover,
   onResume,
   onOpenDocument,
@@ -1037,6 +1214,7 @@ function ConversationsPage({
   onSendReply,
   onSendMedia,
   onDeleteMessage,
+  onReact,
 }: {
   conversations: ConversationRow[];
   allConversations: ConversationRow[];
@@ -1053,10 +1231,13 @@ function ConversationsPage({
   replyBusy: boolean;
   mediaBusy: boolean;
   conversationOutreachBusyId: string | null;
+  followUpBusy: ConversationFollowUpType | null;
+  reactionBusyId: string | null;
   onFilter: (filter: (typeof IR_STATUSES)[number]) => void;
   onSearch: (search: string) => void;
   onSelect: (id: string) => void;
   onConversationInitialOutreach: (conversation: ConversationRow) => void;
+  onSendFollowUp: (type: ConversationFollowUpType) => void;
   onTakeover: () => void;
   onResume: () => void;
   onOpenDocument: (id: string) => void;
@@ -1064,12 +1245,24 @@ function ConversationsPage({
   onReplyTo: (message: MessageRow) => void;
   onClearReplyTo: () => void;
   onSendReply: () => void;
-  onSendMedia: (file: File | null) => void;
+  onSendMedia: (file: File | null, caption?: string) => void;
   onDeleteMessage: (id: string) => void;
+  onReact: (id: string, emoji: string) => void;
 }) {
   const aiPaused = selectedConversation?.status === "waiting_human";
+  const metaWindowClosed = selectedConversation
+    ? isMetaWindowClosed(selectedConversation)
+    : false;
   const threadRef = useRef<HTMLDivElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recorderChunksRef = useRef<Blob[]>([]);
+  const recorderStreamRef = useRef<MediaStream | null>(null);
+  const attachMenuRef = useRef<HTMLDivElement | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
 
   useEffect(() => {
     if (!selectedConversation) return;
@@ -1081,6 +1274,133 @@ function ConversationsPage({
       }
     });
   }, [selectedConversation?.id, messages.length]);
+
+  useEffect(() => {
+    if (!recording) return undefined;
+    const timer = window.setInterval(() => {
+      setRecordingSeconds((current) => current + 1);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [recording]);
+
+  useEffect(() => {
+    return () => {
+      recorderRef.current?.stop();
+      recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  useEffect(() => {
+    setPendingAttachment((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }, [selectedConversation?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingAttachment) URL.revokeObjectURL(pendingAttachment.url);
+    };
+  }, [pendingAttachment]);
+
+  useEffect(() => {
+    if (!attachOpen) return undefined;
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (
+        attachMenuRef.current &&
+        event.target instanceof Node &&
+        !attachMenuRef.current.contains(event.target)
+      ) {
+        setAttachOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", closeOnOutsideClick);
+    return () => window.removeEventListener("mousedown", closeOnOutsideClick);
+  }, [attachOpen]);
+
+  async function startAudioRecording() {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      window.alert("Este navegador não liberou gravação de áudio.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorderStreamRef.current = stream;
+      recorderChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recorderChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(recorderChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+        recorderStreamRef.current = null;
+        recorderRef.current = null;
+        recorderChunksRef.current = [];
+        setRecording(false);
+        setRecordingSeconds(0);
+        if (!blob.size) return;
+        const file = new File([blob], `audio-ir-${Date.now()}.webm`, {
+          type: blob.type || "audio/webm",
+        });
+        stageAttachment(file);
+      };
+      recorder.start();
+      setRecording(true);
+      setRecordingSeconds(0);
+    } catch {
+      window.alert("Não consegui acessar o microfone.");
+    }
+  }
+
+  function stopAudioRecording() {
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.stop();
+    }
+  }
+
+  function attachmentKind(file: File): PendingAttachment["kind"] {
+    if (file.type.startsWith("image/")) return "image";
+    if (file.type.startsWith("audio/")) return "audio";
+    if (file.type.startsWith("video/")) return "video";
+    return "file";
+  }
+
+  function stageAttachment(file: File | null) {
+    if (!file) return;
+    if (file.size > 3_800_000) {
+      window.alert("Arquivo maior que o limite atual de 3,8 MB.");
+      return;
+    }
+    setPendingAttachment((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return {
+        file,
+        url: URL.createObjectURL(file),
+        kind: attachmentKind(file),
+      };
+    });
+    setAttachOpen(false);
+  }
+
+  function clearPendingAttachment() {
+    setPendingAttachment((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }
+
+  function submitComposer() {
+    if (pendingAttachment) {
+      onSendMedia(pendingAttachment.file, replyDraft.trim() || undefined);
+      clearPendingAttachment();
+      return;
+    }
+    onSendReply();
+  }
 
   if (selectedConversation) {
     return (
@@ -1144,7 +1464,47 @@ function ConversationsPage({
             <UserRoundCheck className="icon" />
             Encaminhar humano
           </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={Boolean(followUpBusy)}
+            onClick={() => onSendFollowUp("cnis_reminder")}
+          >
+            <FileText className="icon" />
+            {followUpBusy === "cnis_reminder" ? "Enviando..." : "Lembrete CNIS"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            disabled={Boolean(followUpBusy)}
+            onClick={() => onSendFollowUp("continue_analysis")}
+          >
+            <CheckCircle2 className="icon" />
+            {followUpBusy === "continue_analysis"
+              ? "Enviando..."
+              : "Continuar análise"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            disabled={Boolean(followUpBusy)}
+            onClick={() => onSendFollowUp("resume_analysis")}
+          >
+            <MessageSquare className="icon" />
+            {followUpBusy === "resume_analysis"
+              ? "Enviando..."
+              : "Retomar análise"}
+          </button>
         </div>
+
+        {metaWindowClosed ? (
+          <div className="meta-window-alert">
+            Janela livre de 24h da Meta fechada — texto livre pode falhar. Use{" "}
+            <strong>Lembrete CNIS</strong>, <strong>Continuar análise</strong> ou{" "}
+            <strong>Retomar análise</strong> (templates aprovados), ou peça um “oi” ao lead.
+            A Meta não permite burlar essa regra.
+          </div>
+        ) : null}
 
         <div className="detail-layout">
           <div className="conversation-timeline">
@@ -1153,8 +1513,12 @@ function ConversationsPage({
                 <MessageBubble
                   key={message.id}
                   message={message}
+                  leadName={leadMessageName(selectedConversation)}
                   onReply={onReplyTo}
                   onDelete={onDeleteMessage}
+                  onOpenDocument={onOpenDocument}
+                  onReact={onReact}
+                  reactionBusy={reactionBusyId === message.id}
                 />
               ))}
               {!messages.length ? <EmptyState text="Sem mensagens nesta conversa." compact /> : null}
@@ -1167,7 +1531,7 @@ function ConversationsPage({
                   className="composer"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    onSendReply();
+                    submitComposer();
                   }}
                 >
                   {replyToMessage ? (
@@ -1189,47 +1553,88 @@ function ConversationsPage({
                       </button>
                     </div>
                   ) : null}
+                  {pendingAttachment ? (
+                    <div className="attachment-preview">
+                      <AttachmentPreview attachment={pendingAttachment} />
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label="Remover anexo"
+                        onClick={clearPendingAttachment}
+                      >
+                        <X className="icon" />
+                      </button>
+                    </div>
+                  ) : null}
                   <textarea
                     value={replyDraft}
                     onChange={(event) => onReplyDraft(event.target.value)}
-                    placeholder="Escreva como humano. Enter quebra linha. Use o anexo para enviar imagem, áudio ou documento."
+                    placeholder="Escreva como humano. Enter envia. Shift+Enter quebra linha."
                     rows={3}
                     disabled={replyBusy || mediaBusy}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" || event.shiftKey) return;
+                      if (event.nativeEvent.isComposing) return;
+                      event.preventDefault();
+                      submitComposer();
+                    }}
                   />
-                  <div className="composer-media-actions">
-                    <FilePickerButton
-                      label="Áudio"
-                      icon={Mic}
-                      accept="audio/*"
+                  <div className="composer-toolbox" ref={attachMenuRef}>
+                    <button
+                      type="button"
+                      className={attachOpen ? "icon-button attach-trigger active" : "icon-button attach-trigger"}
+                      aria-label="Anexar"
                       disabled={replyBusy || mediaBusy}
-                      onFile={onSendMedia}
-                    />
-                    <FilePickerButton
-                      label="Imagem"
-                      icon={ImageIcon}
-                      accept="image/*"
-                      disabled={replyBusy || mediaBusy}
-                      onFile={onSendMedia}
-                    />
-                    <FilePickerButton
-                      label="Vídeo"
-                      icon={Video}
-                      accept="video/*"
-                      disabled={replyBusy || mediaBusy}
-                      onFile={onSendMedia}
-                    />
-                    <FilePickerButton
-                      label="Arquivo"
-                      icon={FileUp}
-                      accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,application/pdf"
-                      disabled={replyBusy || mediaBusy}
-                      onFile={onSendMedia}
-                    />
+                      onClick={() => setAttachOpen((current) => !current)}
+                    >
+                      <Plus className="icon" />
+                    </button>
+                    {attachOpen ? (
+                      <div className="attach-menu">
+                        <button
+                          type="button"
+                          className={recording ? "attach-option recording" : "attach-option"}
+                          disabled={replyBusy || mediaBusy}
+                          onClick={recording ? stopAudioRecording : startAudioRecording}
+                        >
+                          <Mic className="icon" />
+                          {recording ? `Parar ${formatDuration(recordingSeconds)}` : "Gravar áudio"}
+                        </button>
+                        <FilePickerButton
+                          label="Áudio"
+                          icon={Mic}
+                          accept="audio/*"
+                          disabled={replyBusy || mediaBusy}
+                          onFile={stageAttachment}
+                        />
+                        <FilePickerButton
+                          label="Imagem"
+                          icon={ImageIcon}
+                          accept="image/*"
+                          disabled={replyBusy || mediaBusy}
+                          onFile={stageAttachment}
+                        />
+                        <FilePickerButton
+                          label="Vídeo"
+                          icon={Video}
+                          accept="video/*"
+                          disabled={replyBusy || mediaBusy}
+                          onFile={stageAttachment}
+                        />
+                        <FilePickerButton
+                          label="Arquivo"
+                          icon={FileUp}
+                          accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,application/pdf"
+                          disabled={replyBusy || mediaBusy}
+                          onFile={stageAttachment}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={replyBusy || mediaBusy || !replyDraft.trim()}
+                    disabled={replyBusy || mediaBusy || (!replyDraft.trim() && !pendingAttachment)}
                   >
                     <Send className="icon" />
                     {replyBusy || mediaBusy ? "Enviando..." : "Enviar"}
@@ -1451,6 +1856,137 @@ function LeadsPage({
             );
           })}
         </DataTable>
+      </PanelCard>
+    </div>
+  );
+}
+
+function OutreachPage({
+  rows,
+  filename,
+  costPerTemplate,
+  busy,
+  summary,
+  onCostChange,
+  onFile,
+  onSend,
+}: {
+  rows: OutreachCsvRow[];
+  filename: string;
+  costPerTemplate: string;
+  busy: boolean;
+  summary: OutreachBatchSummary | null;
+  onCostChange: (value: string) => void;
+  onFile: (file: File | null) => void;
+  onSend: () => void;
+}) {
+  const eligible = rows.filter((row) => row.status === "eligible");
+  const invalid = rows.filter((row) => row.status === "invalid");
+  const duplicated = rows.filter((row) => row.status === "duplicate");
+  const unitCost = parseCurrencyNumber(costPerTemplate);
+  const estimatedCost = eligible.length * unitCost;
+
+  return (
+    <div className="page-stack">
+      <section className="outreach-hero">
+        <div>
+          <h2>Disparo de contato inicial</h2>
+          <p>
+            Use esta área para listas novas de médicos. O envio usa o template
+            aprovado `contato_inicial` e registra o disparo no inbox para auditoria.
+          </p>
+        </div>
+        <label className="btn btn-primary">
+          <Upload className="icon" />
+          Selecionar CSV
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            hidden
+            disabled={busy}
+            onChange={(event) => onFile(event.target.files?.[0] ?? null)}
+          />
+        </label>
+      </section>
+
+      <section className="stats-grid outreach-stats">
+        <MetricCard label="Arquivo" value={filename || "--"} hint="Lista analisada" icon={FileText} />
+        <MetricCard label="Linhas válidas" value={eligible.length} hint="Prontas para envio" icon={CheckCircle2} />
+        <MetricCard label="Duplicadas" value={duplicated.length} hint="No próprio CSV" icon={ClipboardList} />
+        <MetricCard label="Inválidas" value={invalid.length} hint="Telefone ausente/inválido" icon={X} />
+        <MetricCard label="Estimativa" value={formatMoney(estimatedCost)} hint="Custo editável" icon={BarChart3} />
+      </section>
+
+      <PanelCard
+        title="Configuração do lote"
+        icon={Send}
+        action={
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy || !eligible.length}
+            onClick={onSend}
+          >
+            <Send className="icon" />
+            {busy ? "Enfileirando..." : "Disparar elegíveis"}
+          </button>
+        }
+      >
+        <div className="outreach-controls">
+          <label>
+            Template
+            <input value="contato_inicial" readOnly />
+          </label>
+          <label>
+            Custo por template
+            <input
+              value={costPerTemplate}
+              onChange={(event) => onCostChange(event.target.value)}
+              inputMode="decimal"
+              placeholder="0,00"
+            />
+          </label>
+          <div>
+            <span>Previsão do lote</span>
+            <strong>{eligible.length} contatos · {formatMoney(estimatedCost)}</strong>
+          </div>
+        </div>
+        {summary ? (
+          <p className="panel-note">
+            Último envio: {summary.queued} enfileirados, {summary.created} novos,
+            {" "}
+            {summary.reused} reaproveitados e {summary.skipped.length} pulados pelo backend.
+          </p>
+        ) : (
+          <p className="panel-note">
+            O backend valida novamente opt-out, duplicados e templates já enviados antes de
+            enfileirar.
+          </p>
+        )}
+      </PanelCard>
+
+      <PanelCard title="Prévia da lista" badge={String(rows.length)} icon={ClipboardList}>
+        <DataTable
+          columns={["Nome", "Telefone", "Email", "Médico(a)", "Status"]}
+          empty="Nenhum CSV carregado."
+        >
+          {rows.slice(0, 200).map((row) => (
+            <tr key={row.id}>
+              <td>{row.name || "Sem nome"}</td>
+              <td className="mono">{formatPhoneDisplay(row.phone)}</td>
+              <td>{row.email || "Não informado"}</td>
+              <td>{row.isDoctor == null ? "Não informado" : row.isDoctor ? "Sim" : "Não"}</td>
+              <td>
+                <Badge tone={row.status === "eligible" ? "success" : "warning"}>
+                  {row.status === "eligible" ? "Elegível" : row.reason}
+                </Badge>
+              </td>
+            </tr>
+          ))}
+        </DataTable>
+        {rows.length > 200 ? (
+          <p className="panel-note">Mostrando os primeiros 200 contatos.</p>
+        ) : null}
       </PanelCard>
     </div>
   );
@@ -1896,7 +2432,6 @@ function CaseSidePanel({
     !messages.length &&
     !templateAlreadyQueued &&
     !templateAlreadySent &&
-    conversation.status !== "closed" &&
     Boolean(conversation.phone || conversation.lead_phone);
 
   return (
@@ -2072,7 +2607,7 @@ function FilePickerButton({
   onFile: (file: File | null) => void;
 }) {
   return (
-    <label className="btn btn-outline composer-attach">
+    <label className="attach-option composer-attach">
       <Icon className="icon" />
       {label}
       <input
@@ -2089,28 +2624,169 @@ function FilePickerButton({
   );
 }
 
+function formatBytes(size: number): string {
+  if (size >= 1_048_576) return `${(size / 1_048_576).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
+}
+
+function AttachmentPreview({ attachment }: { attachment: PendingAttachment }) {
+  const { file, url, kind } = attachment;
+  const size = formatBytes(file.size);
+
+  if (kind === "image") {
+    return (
+      <div className="attachment-preview-content">
+        <img src={url} alt={file.name} />
+        <div>
+          <strong>{file.name}</strong>
+          <span>Imagem · {size}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === "video") {
+    return (
+      <div className="attachment-preview-content">
+        <video src={url} controls />
+        <div>
+          <strong>{file.name}</strong>
+          <span>Vídeo · {size}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === "audio") {
+    return (
+      <div className="attachment-preview-content">
+        <Mic className="icon" />
+        <div>
+          <strong>{file.name}</strong>
+          <span>Áudio · {size}</span>
+          <audio src={url} controls />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="attachment-preview-content">
+      <FileText className="icon" />
+      <div>
+        <strong>{file.name}</strong>
+        <span>Arquivo · {size}</span>
+      </div>
+    </div>
+  );
+}
+
 function messagePreview(message: MessageRow): string {
   const text = message.text?.trim();
   if (text) return text.length > 90 ? `${text.slice(0, 87)}...` : text;
   return `[${message.message_type ?? "mídia"}]`;
 }
 
+function mediaInfo(message: MessageRow): {
+  isMedia: boolean;
+  label: string;
+  detail: string;
+  icon: LucideIcon;
+} {
+  const type = message.message_type ?? "";
+  if (type === "image") {
+    return {
+      isMedia: true,
+      label: message.media_filename ?? "Imagem",
+      detail: message.text?.trim() && message.text !== "[image]" ? message.text : message.media_mime_type ?? "Imagem recebida pelo WhatsApp",
+      icon: ImageIcon,
+    };
+  }
+  if (type === "audio") {
+    return {
+      isMedia: true,
+      label: message.media_filename ?? "Áudio",
+      detail: message.text?.trim() && message.text !== "[audio]" ? message.text : message.media_mime_type ?? "Áudio recebido pelo WhatsApp",
+      icon: Mic,
+    };
+  }
+  if (type === "video") {
+    return {
+      isMedia: true,
+      label: message.media_filename ?? "Vídeo",
+      detail: message.text?.trim() && message.text !== "[video]" ? message.text : message.media_mime_type ?? "Vídeo recebido pelo WhatsApp",
+      icon: Video,
+    };
+  }
+  if (type === "document") {
+    const text = message.media_filename ?? message.text?.trim();
+    const filename =
+      text?.startsWith("[arquivo:")
+        ? text.replace(/^\[arquivo:\s*|\]$/g, "")
+        : text && /\.[a-z0-9]{2,5}$/i.test(text)
+          ? text
+          : null;
+    return {
+      isMedia: true,
+      label: filename ?? "Documento",
+      detail: text && text !== "[document]" && !filename
+        ? text
+        : message.media_mime_type ?? "Documento recebido pelo WhatsApp",
+      icon: FileText,
+    };
+  }
+  return {
+    isMedia: false,
+    label: "",
+    detail: "",
+    icon: FileText,
+  };
+}
+
 function MessageBubble({
   message,
+  leadName,
   onReply,
   onDelete,
+  onOpenDocument,
+  onReact,
+  reactionBusy,
 }: {
   message: MessageRow;
+  leadName: string;
   onReply: (message: MessageRow) => void;
   onDelete: (id: string) => void;
+  onOpenDocument: (id: string) => void;
+  onReact: (id: string, emoji: string) => void;
+  reactionBusy: boolean;
 }) {
   const incoming = message.role === "user";
   const isCnisGuide = message.message_type === "cnis_guide";
+  const media = mediaInfo(message);
+  const MediaIcon = media.icon;
   const canDelete = !incoming;
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMediaUrl(null);
+    if (!message.media_document_id || !media.isMedia) return undefined;
+    openDocument(message.media_document_id)
+      .then(({ url }) => {
+        if (!cancelled) setMediaUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setMediaUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [media.isMedia, message.media_document_id]);
+
   return (
     <article className={incoming ? "message-row inbound" : "message-row outbound"}>
       <div className="message-author">
-        <span>{incoming ? "Lead" : message.role === "assistant" ? "Agente IA" : "Humano"}</span>
+        <span>{incoming ? leadName : message.role === "assistant" ? "Agente IA" : "Humano"}</span>
         <time>{formatDate(message.created_at)}</time>
       </div>
       <div className="message-bubble">
@@ -2125,6 +2801,40 @@ function MessageBubble({
             </div>
             <p>{message.text}</p>
           </div>
+        ) : media.isMedia ? (
+          <div className="media-message-card">
+            {mediaUrl && message.message_type === "image" ? (
+              <button
+                type="button"
+                className="media-preview-button"
+                onClick={() => onOpenDocument(message.media_document_id!)}
+              >
+                <img src={mediaUrl} alt={media.label} />
+              </button>
+            ) : mediaUrl && message.message_type === "video" ? (
+              <video className="media-preview-video" src={mediaUrl} controls />
+            ) : (
+              <div className={`media-icon type-${message.message_type ?? "file"}`}>
+                <MediaIcon className="icon" />
+              </div>
+            )}
+            <div>
+              <strong>{media.label}</strong>
+              <span>{media.detail}</span>
+              {mediaUrl && message.message_type === "audio" ? (
+                <audio className="media-preview-audio" src={mediaUrl} controls />
+              ) : null}
+              {message.media_document_id ? (
+                <button
+                  type="button"
+                  className="inline-media-action"
+                  onClick={() => onOpenDocument(message.media_document_id!)}
+                >
+                  Abrir arquivo
+                </button>
+              ) : null}
+            </div>
+          </div>
         ) : (
           <p>{message.text ?? `[${message.message_type ?? "mídia"}]`}</p>
         )}
@@ -2134,6 +2844,22 @@ function MessageBubble({
           <Reply className="tiny-icon" />
           Responder
         </button>
+        {incoming && message.external_message_id ? (
+          <span className="reaction-actions" aria-label="Reações rápidas">
+            {["👍", "✅", "🙏"].map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                className="reaction-button"
+                disabled={reactionBusy}
+                onClick={() => onReact(message.id, emoji)}
+                title={`Reagir com ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </span>
+        ) : null}
         {canDelete ? (
           <button
             type="button"
@@ -2201,6 +2927,7 @@ function pageDescription(page: PanelPage) {
     dashboard: "Funil ativo: formulário, WhatsApp, CNIS, Advbox e humano.",
     conversas: "Inbox operacional com takeover, resposta humana e documentos.",
     leads: "Leads da Meta, formulário e testes de primeiro contato.",
+    disparos: "Listas novas, custo estimado e template inicial em lote.",
     reaquecer: "Fila revisada por humano antes de qualquer template.",
     importar: "Histórico WhatsApp para score e reativação controlada.",
     config: "Webhooks, sessão segura e testes de template da IR.",
@@ -2212,6 +2939,23 @@ function leadDisplayName(conversation: ConversationRow): string {
   const name = conversation.lead_name?.trim();
   if (name) return name;
   return formatPhoneDisplay(conversation.phone);
+}
+
+function leadMessageName(conversation: ConversationRow): string {
+  return conversation.lead_name?.trim() || "Lead";
+}
+
+function isMetaWindowClosed(conversation: ConversationRow): boolean {
+  if (!conversation.last_inbound_at) return true;
+  const lastInbound = new Date(conversation.last_inbound_at).getTime();
+  if (!Number.isFinite(lastInbound)) return true;
+  return Date.now() - lastInbound > 24 * 60 * 60 * 1000;
+}
+
+function formatDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
 }
 
 function doctorAnswerLabel(conversation: ConversationRow): string {
@@ -2275,6 +3019,128 @@ function sourceTone(label: string): StatusTone {
   if (label === "META") return "success";
   if (label === "Importação") return "warning";
   return "muted";
+}
+
+function parseOutreachCsv(raw: string): OutreachCsvRow[] {
+  const lines = raw
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) throw new Error("CSV vazio ou sem linhas de contato.");
+
+  const delimiter = detectCsvDelimiter(lines[0]);
+  const header = splitDelimitedLine(lines[0], delimiter).map((col) =>
+    normalizeHeader(col),
+  );
+  const idx = {
+    name: findHeader(header, ["nome", "name", "full_name", "nome_completo"]),
+    phone: findHeader(header, ["telefone", "phone", "whatsapp", "celular", "mobile"]),
+    email: findHeader(header, ["email", "e_mail", "mail"]),
+    doctor: findHeader(header, ["medico", "médico", "is_doctor", "doctor"]),
+  };
+  if (idx.phone < 0) throw new Error("CSV precisa ter uma coluna telefone.");
+
+  const seen = new Set<string>();
+  return lines.slice(1).map((line, index) => {
+    const cols = splitDelimitedLine(line, delimiter);
+    const phone = normalizePhoneForOutreach(cols[idx.phone]);
+    const phoneKey = phone.replace(/\D/g, "");
+    const duplicate = phoneKey ? seen.has(phoneKey) : false;
+    if (phoneKey) seen.add(phoneKey);
+    const valid = Boolean(phone);
+    const status: OutreachCsvRow["status"] = !valid
+      ? "invalid"
+      : duplicate
+        ? "duplicate"
+        : "eligible";
+    return {
+      id: `${index}-${phoneKey || "invalid"}`,
+      name: idx.name >= 0 ? cols[idx.name]?.trim() || "" : "",
+      phone,
+      email: idx.email >= 0 ? cols[idx.email]?.trim() || "" : "",
+      isDoctor: idx.doctor >= 0 ? parseDoctorAnswer(cols[idx.doctor]) : null,
+      status,
+      reason:
+        status === "invalid"
+          ? "Telefone inválido"
+          : status === "duplicate"
+            ? "Duplicado"
+            : "Elegível",
+    };
+  });
+}
+
+function detectCsvDelimiter(header: string): "," | ";" {
+  return header.split(";").length > header.split(",").length ? ";" : ",";
+}
+
+function splitDelimitedLine(line: string, delimiter: "," | ";"): string[] {
+  const out: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === delimiter && !inQuotes) {
+      out.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  out.push(current);
+  return out;
+}
+
+function normalizeHeader(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_");
+}
+
+function findHeader(header: string[], aliases: string[]): number {
+  const normalized = aliases.map(normalizeHeader);
+  return header.findIndex((col) => normalized.includes(col));
+}
+
+function parseDoctorAnswer(value?: string): boolean | null {
+  const raw = normalizeHeader(value ?? "");
+  if (["sim", "s", "yes", "medico", "medica"].includes(raw)) return true;
+  if (["nao", "n", "no"].includes(raw)) return false;
+  return null;
+}
+
+function normalizePhoneForOutreach(value?: string): string {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (digits.length < 10) return "";
+  if (digits.startsWith("55") && digits.length >= 12) return `+${digits}`;
+  if (digits.length === 10 || digits.length === 11) return `+55${digits}`;
+  return `+${digits}`;
+}
+
+function parseCurrencyNumber(value: string): number {
+  const normalized = value.replace(/\./g, "").replace(",", ".");
+  const amount = Number.parseFloat(normalized);
+  return Number.isFinite(amount) ? Math.max(0, amount) : 0;
+}
+
+function formatMoney(value: number): string {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
 
 function statusLabel(status: string) {

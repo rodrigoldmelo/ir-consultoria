@@ -79,8 +79,9 @@ Textos finais: jurídico + Meta approval. Rascunhos em `docs/META_OUTREACH.md`.
 - Worker: `backend/workers/follow-up-worker.ts` (real; agenda via `drip.ts` após template #1)
 - Flag: `IR_FOLLOW_UP_WORKER_ENABLED=true` só com templates TRUST/EXPLAIN + opt-in ok
 - Step 2 padrão: **24h** (`IR_DRIP_STEP2_HOURS`)
+- Lembrete automático de documento: quando o PDF CNIS + DIRF é enviado, agenda `lembrete_envio_cnis_03` para a manhã seguinte, padrão **08:30** (`IR_DOCUMENT_REMINDER_HOUR` / `IR_DOCUMENT_REMINDER_MINUTE`). O worker só envia se ainda não houver CNIS/DIRF recebido e a conversa seguir em `qualifying` ou `waiting_documents`.
 - Lembrete dentro da janela: `backend/workers/in-window-nudge-worker.ts` (`IR_INWINDOW_NUDGE_ENABLED`, off por padrão)
-- Cancel automático: 1ª resposta inbound ou opt-out (`cancelDripForPhone`)
+- Cancel automático: 1ª resposta inbound cancela drips de abertura; opt-out cancela todos; documento recebido cancela lembrete de CNIS/DIRF.
 
 ---
 

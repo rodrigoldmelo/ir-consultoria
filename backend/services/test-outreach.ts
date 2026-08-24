@@ -8,6 +8,7 @@ import {
 } from "../db/conversations.js";
 import { insertLead } from "../db/leads.js";
 import { findLeadByPhone, getLeadById, updateLeadStatusById } from "../db/leads.js";
+import { isPhoneOptedOut } from "../db/opt-outs.js";
 import { wakeTemplateWorker } from "../workers/template-worker.js";
 import { cancelDripForPhone } from "./drip.js";
 import { sendWhatsAppTemplate } from "./meta-graph.js";
@@ -34,6 +35,9 @@ export async function queueTestOutreach(input: {
   const phone = normalizePhoneE164(input.phone);
   if (!phone) {
     return { ok: false, error: "invalid_phone" };
+  }
+  if (await isPhoneOptedOut(phone)) {
+    return { ok: false, error: "phone_suppressed_opt_out" };
   }
 
   const name = (input.name ?? "").trim() || "Teste";
@@ -98,6 +102,9 @@ export async function queueLeadInitialOutreach(input: {
   if (!phone) {
     return { ok: false, error: "invalid_phone" };
   }
+  if (await isPhoneOptedOut(phone)) {
+    return { ok: false, error: "phone_suppressed_opt_out" };
+  }
 
   await cancelDripForPhone(phone, "manual_initial_outreach");
   await updateLeadStatusById(lead.id, "template_queued");
@@ -144,6 +151,9 @@ export async function queueConversationInitialOutreach(input: {
   const phone = normalizePhoneE164(conversation.phone);
   if (!phone) {
     return { ok: false, error: "invalid_phone" };
+  }
+  if (await isPhoneOptedOut(phone)) {
+    return { ok: false, error: "phone_suppressed_opt_out" };
   }
 
   let lead = conversation.lead_id
@@ -221,6 +231,9 @@ export async function sendTestDripTemplate(input: {
   const phone = normalizePhoneE164(input.phone);
   if (!phone) {
     return { ok: false, error: "invalid_phone" };
+  }
+  if (await isPhoneOptedOut(phone)) {
+    return { ok: false, error: "phone_suppressed_opt_out" };
   }
 
   const first = firstNameFromLead(input.name) ?? "olá";

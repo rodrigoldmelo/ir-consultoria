@@ -85,7 +85,7 @@ export async function listDocumentsForCase(caseId: string): Promise<
 
   const { data, error } = await db
     .from("ir_documents")
-    .select("id, document_type, original_filename, mime_type, size_bytes, created_at")
+    .select("id, document_type, original_filename, mime_type, size_bytes, classification_status, created_at")
     .eq("case_id", caseId)
     .order("created_at", { ascending: true });
 
@@ -93,5 +93,7 @@ export async function listDocumentsForCase(caseId: string): Promise<
     console.error("[db/cases] listDocuments", error.message);
     return [];
   }
-  return data ?? [];
+  return (data ?? []).filter(
+    (doc) => doc.classification_status !== "panel_outbound_media",
+  );
 }

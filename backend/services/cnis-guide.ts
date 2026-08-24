@@ -11,6 +11,7 @@ import {
   insertMessage,
   touchConversation,
 } from "../db/conversations.js";
+import { scheduleDocumentReminder } from "./drip.js";
 import { sendWhatsAppDocument } from "./meta-graph.js";
 
 const FILENAME = "Passo-a-passo-CNIS-e-DIRFS-IR-Consultoria.pdf";
@@ -85,7 +86,14 @@ export async function sendCnisGuideIfNeeded(input: {
       externalMessageId: sent.externalMessageId,
       deliveryStatus: "sent",
     });
-    await touchConversation(input.conversationId, { lastOutbound: true });
+    await touchConversation(input.conversationId, {
+      status: "waiting_documents",
+      lastOutbound: true,
+    });
+    await scheduleDocumentReminder({
+      conversationId: input.conversationId,
+      phone: input.phone,
+    });
   }
 
   console.info("[cnis-guide] sent", input.phone);

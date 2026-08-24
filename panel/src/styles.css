@@ -725,6 +725,18 @@ button:disabled {
   color: var(--muted-foreground);
 }
 
+.badge.info {
+  border-color: color-mix(in oklch, oklch(0.55 0.14 245) 28%, transparent);
+  background: color-mix(in oklch, oklch(0.55 0.14 245) 10%, white);
+  color: oklch(0.48 0.14 245);
+}
+
+.badge.soft {
+  border-color: color-mix(in oklch, var(--success) 20%, transparent);
+  background: color-mix(in oklch, var(--success) 8%, white);
+  color: color-mix(in oklch, var(--success) 84%, black);
+}
+
 .funnel {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1033,6 +1045,16 @@ button:disabled {
   padding: 8px 20px;
 }
 
+.meta-window-alert {
+  flex: 0 0 auto;
+  border-bottom: 1px solid color-mix(in oklch, var(--warning) 32%, var(--border));
+  background: color-mix(in oklch, var(--warning) 10%, var(--card));
+  color: color-mix(in oklch, var(--warning) 58%, var(--foreground));
+  padding: 8px 20px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .detail-layout {
   flex: 1;
   min-height: 0;
@@ -1128,11 +1150,136 @@ button:disabled {
   font-size: 11px;
 }
 
+.media-message-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: min(320px, 68vw);
+}
+
+.media-message-card strong,
+.media-message-card span {
+  display: block;
+}
+
+.media-message-card strong {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.media-message-card span {
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0.78;
+}
+
+.inline-media-action {
+  display: inline-flex;
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.inline-media-action:hover {
+  opacity: 1;
+}
+
+.media-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--primary-foreground), transparent 88%);
+}
+
+.message-row.inbound .media-icon {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.media-icon .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.media-preview-button {
+  display: block;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.media-preview-button img {
+  display: block;
+  width: min(260px, 52vw);
+  max-height: 260px;
+  object-fit: cover;
+}
+
+.media-preview-video {
+  width: min(280px, 56vw);
+  max-height: 260px;
+  border-radius: 8px;
+  background: #000;
+}
+
+.media-preview-audio {
+  width: min(260px, 52vw);
+  margin-top: 8px;
+}
+
 .message-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 6px;
+}
+
+.reaction-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.reaction-button {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reaction-button:hover {
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.reaction-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .reply-link {
@@ -1624,6 +1771,69 @@ button:disabled {
   white-space: nowrap;
 }
 
+.attachment-preview {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  padding: 10px;
+}
+
+.attachment-preview-content {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.attachment-preview-content img,
+.attachment-preview-content video {
+  width: 84px;
+  height: 64px;
+  border-radius: 7px;
+  object-fit: cover;
+  background: var(--muted);
+}
+
+.attachment-preview-content > .icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--primary) 9%, var(--card));
+  color: var(--primary);
+  padding: 8px;
+}
+
+.attachment-preview-content strong,
+.attachment-preview-content span {
+  display: block;
+  min-width: 0;
+}
+
+.attachment-preview-content strong {
+  max-width: min(420px, 60vw);
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-preview-content span {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.attachment-preview-content audio {
+  width: min(280px, 58vw);
+  margin-top: 6px;
+}
+
 .composer textarea {
   width: 100%;
   min-height: 72px;
@@ -1642,15 +1852,81 @@ button:disabled {
   height: 40px;
 }
 
-.composer-media-actions {
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 0;
+}
+
+.icon-button:hover,
+.icon-button.active {
+  border-color: color-mix(in oklch, var(--primary) 35%, transparent);
+  background: color-mix(in oklch, var(--primary) 8%, var(--card));
+  color: var(--primary);
+}
+
+.recording-button {
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 15%, transparent);
+}
+
+.composer-toolbox {
+  position: relative;
+  align-self: end;
+}
+
+.attach-trigger {
+  width: 40px;
+  height: 40px;
+}
+
+.attach-menu {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 190px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(92px, 1fr));
-  gap: 8px;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 6px;
+  box-shadow: 0 16px 40px oklch(0.2 0.02 250 / 18%);
+}
+
+.attach-option {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.attach-option:hover {
+  background: var(--muted);
+}
+
+.attach-option.recording {
+  background: color-mix(in oklch, var(--primary) 10%, white);
+  color: var(--primary);
 }
 
 .composer-attach {
   cursor: pointer;
-  justify-content: center;
 }
 
 .composer-attach input {
@@ -1773,6 +2049,79 @@ th {
 .upload-panel p {
   margin: 0;
   color: var(--muted-foreground);
+}
+
+.outreach-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  padding: 20px 22px;
+}
+
+.outreach-hero h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.outreach-hero p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.outreach-stats {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.outreach-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px minmax(220px, 0.7fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.outreach-controls label,
+.outreach-controls div {
+  display: grid;
+  gap: 7px;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.outreach-controls input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--input);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 0 10px;
+  outline: none;
+}
+
+.outreach-controls span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.outreach-controls strong {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--muted);
+  padding: 0 10px;
+  font-size: 13px;
 }
 
 .code-box {
@@ -2221,6 +2570,11 @@ th {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .outreach-stats,
+  .outreach-controls {
+    grid-template-columns: 1fr;
+  }
+
   .dashboard-grid,
   .settings-grid,
   .dashboard-operational-grid,
@@ -2277,6 +2631,11 @@ th {
   .topbar .btn {
     min-width: 40px;
     padding: 0 10px;
+  }
+
+  .outreach-hero {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .stats-grid {
@@ -2438,8 +2797,9 @@ th {
     grid-template-columns: 1fr;
   }
 
-  .composer-media-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .attach-menu {
+    right: auto;
+    left: 0;
   }
 
   .stats-grid {

@@ -1,6 +1,7 @@
 import { recordAuditEvent } from "../db/audit.js";
 import { insertMessage, touchConversation } from "../db/conversations.js";
 import { config } from "../config.js";
+import { isPhoneOptedOut } from "../db/opt-outs.js";
 import { getSupabaseAdmin } from "./supabase.js";
 import { sendWhatsAppTemplate } from "./meta-graph.js";
 
@@ -80,6 +81,18 @@ export async function decideReheat(input: {
       };
     }
     if (!score.phone) throw new Error("missing_phone");
+    if (await isPhoneOptedOut(score.phone)) {
+      await markDecision(db, score.id, "rejected");
+      await recordAuditEvent({
+        entityType: "reheat",
+        entityId: score.id,
+        eventType: "reheat_suppressed_opt_out",
+        actorType: "system",
+        summary: "Reaquecimento bloqueado por opt-out global do telefone",
+        metadata: { phone: score.phone },
+      });
+      return { ok: true, sent: false, note: "suppressed_opt_out" };
+    }
 
     const result = await sendWhatsAppTemplate({
       toE164: score.phone,
