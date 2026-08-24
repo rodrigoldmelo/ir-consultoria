@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock3,
+  Download,
   FileUp,
   FileText,
   History,
@@ -596,6 +597,22 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  async function onDownloadDocument(id: string) {
+    try {
+      const { url } = await openDocument(id);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "";
+      link.target = "_blank";
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setError(toErrorMessage(err));
+    }
+  }
+
   async function onDecide(id: string, decision: "approved" | "rejected") {
     setDecideBusyId(id);
     setActionMsg("");
@@ -809,6 +826,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             onTakeover={() => void onTakeover()}
             onResume={() => void onResume()}
             onOpenDocument={(id) => void onOpenDocument(id)}
+            onDownloadDocument={(id) => void onDownloadDocument(id)}
             onReplyDraft={setReplyDraft}
             onReplyTo={setReplyToMessage}
             onClearReplyTo={() => setReplyToMessage(null)}
@@ -1208,6 +1226,7 @@ function ConversationsPage({
   onTakeover,
   onResume,
   onOpenDocument,
+  onDownloadDocument,
   onReplyDraft,
   onReplyTo,
   onClearReplyTo,
@@ -1241,6 +1260,7 @@ function ConversationsPage({
   onTakeover: () => void;
   onResume: () => void;
   onOpenDocument: (id: string) => void;
+  onDownloadDocument: (id: string) => void;
   onReplyDraft: (text: string) => void;
   onReplyTo: (message: MessageRow) => void;
   onClearReplyTo: () => void;
@@ -1263,6 +1283,10 @@ function ConversationsPage({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [attachOpen, setAttachOpen] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const messagesWithMedia = useMemo(
+    () => attachDocumentFallbacksToMessages(messages, documents),
+    [messages, documents],
+  );
 
   useEffect(() => {
     if (!selectedConversation) return;
@@ -1509,7 +1533,7 @@ function ConversationsPage({
         <div className="detail-layout">
           <div className="conversation-timeline">
             <div className="message-thread lis-thread" ref={threadRef}>
-              {messages.map((message) => (
+              {messagesWithMedia.map((message) => (
                 <MessageBubble
                   key={message.id}
                   message={message}
@@ -1676,6 +1700,7 @@ function ConversationsPage({
             missingDocs={missingDocs}
             outreachBusy={conversationOutreachBusyId === selectedConversation.id}
             onOpenDocument={onOpenDocument}
+            onDownloadDocument={onDownloadDocument}
             onSendInitialOutreach={() => onConversationInitialOutreach(selectedConversation)}
             onTakeover={onTakeover}
             onResume={onResume}
@@ -2406,6 +2431,7 @@ function CaseSidePanel({
   missingDocs,
   outreachBusy,
   onOpenDocument,
+  onDownloadDocument,
   onSendInitialOutreach,
   onTakeover,
   onResume,
@@ -2416,6 +2442,7 @@ function CaseSidePanel({
   missingDocs: string[];
   outreachBusy: boolean;
   onOpenDocument: (id: string) => void;
+  onDownloadDocument: (id: string) => void;
   onSendInitialOutreach: () => void;
   onTakeover: () => void;
   onResume: () => void;
@@ -2536,6 +2563,21 @@ function CaseSidePanel({
                     ? ` · ${Math.round(document.size_bytes / 1024)} KB`
                     : ""}
                 </em>
+              </span>
+              <span className="document-actions">
+                <span>Abrir</span>
+                <button
+                  type="button"
+                  className="document-download"
+                  aria-label="Baixar documento"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDownloadDocument(document.id);
+                  }}
+                >
+                  <Download className="tiny-icon" />
+                  Baixar
+                </button>
               </span>
             </button>
           ))}
@@ -2679,6 +2721,63 @@ function AttachmentPreview({ attachment }: { attachment: PendingAttachment }) {
       </div>
     </div>
   );
+}
+
+function isTimelineMedia(message: MessageRow): boolean {
+  return ["image", "audio", "video", "document"].includes(
+    String(message.message_type ?? ""),
+  );
+}
+
+function documentMatchesMessage(document: DocumentRow, message: MessageRow): boolean {
+  const type = String(message.message_type ?? "");
+  const mime = document.mime_type ?? "";
+  if (type === "image") return mime.startsWith("image/");
+  if (type === "audio") return mime.startsWith("audio/");
+  if (type === "video") return mime.startsWith("video/");
+  if (type === "document") return !mime.startsWith("image/") && !mime.startsWith("audio/") && !mime.startsWith("video/");
+  return false;
+}
+
+function attachDocumentFallbacksToMessages(
+  messages: MessageRow[],
+  documents: DocumentRow[],
+): MessageRow[] {
+  const usedDocumentIds = new Set(
+    messages
+      .map((message) => message.media_document_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  return messages.map((message) => {
+    if (message.media_document_id || message.role !== "user" || !isTimelineMedia(message)) {
+      return message;
+    }
+
+    const messageTime = new Date(message.created_at).getTime();
+    const candidates = documents
+      .filter(
+        (document) =>
+          !usedDocumentIds.has(document.id) &&
+          documentMatchesMessage(document, message),
+      )
+      .sort((a, b) => {
+        const aDiff = Math.abs(new Date(a.created_at).getTime() - messageTime);
+        const bDiff = Math.abs(new Date(b.created_at).getTime() - messageTime);
+        return aDiff - bDiff;
+      });
+
+    const document = candidates[0];
+    if (!document) return message;
+    usedDocumentIds.add(document.id);
+    return {
+      ...message,
+      media_document_id: document.id,
+      media_filename: document.original_filename,
+      media_mime_type: document.mime_type,
+      media_size_bytes: document.size_bytes,
+    };
+  });
 }
 
 function messagePreview(message: MessageRow): string {

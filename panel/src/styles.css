@@ -1696,6 +1696,38 @@ button:disabled {
   text-align: left;
 }
 
+.document-row > span:first-of-type {
+  flex: 1;
+}
+
+.document-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.document-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 4px 6px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.document-download:hover {
+  border-color: color-mix(in oklch, var(--primary) 35%, transparent);
+  color: var(--primary);
+}
+
 .document-row:hover {
   background: var(--muted);
 }

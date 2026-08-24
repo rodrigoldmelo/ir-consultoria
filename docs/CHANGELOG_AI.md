@@ -1,5 +1,9 @@
 # CHANGELOG_AI — IR Consultoria
 
+## 2026-08-24 — Abertura e download de imagens/documentos
+
+- Corrigida a experiência de anexos recebidos no detalhe da conversa: quando uma mídia inbound não vem com vínculo direto na mensagem, o painel tenta casar com documentos do caso por tipo e horário para renderizar/abrir a imagem na bolha. A lateral **Documentos do caso** agora exibe ações explícitas de **Abrir** e **Baixar**, evitando depender apenas do clique no card.
+
 ## 2026-08-24 — Reações por emoji no WhatsApp
 
 - O detalhe da conversa ganhou reações rápidas nas mensagens recebidas do lead (`👍`, `✅`, `🙏`). O painel chama a Cloud API com mensagem `reaction` usando o `wamid` salvo em `external_message_id`; quando a mensagem não tem ID do WhatsApp, a reação não aparece. A implementação é isolada da IA e não cria resposta textual no histórico.
