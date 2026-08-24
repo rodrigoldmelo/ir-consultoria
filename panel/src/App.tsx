@@ -3106,7 +3106,11 @@ function MessageBubble({
                 >
                   Abrir arquivo
                 </button>
-              ) : null}
+              ) : (
+                <span className="inline-media-missing">
+                  Arquivo não salvo. Peça para reenviar.
+                </span>
+              )}
             </div>
           </div>
         ) : (
