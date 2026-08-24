@@ -91,6 +91,14 @@ type PendingAttachment = {
   kind: "image" | "audio" | "video" | "file";
 };
 
+type DocumentViewer = {
+  id: string;
+  url: string;
+  label: string;
+  mimeType: string | null;
+  filename: string | null;
+};
+
 type OutreachCsvRow = {
   id: string;
   name: string;
@@ -217,6 +225,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [missingDocs, setMissingDocs] = useState<string[]>([]);
+  const [documentViewer, setDocumentViewer] = useState<DocumentViewer | null>(null);
   const [note, setNote] = useState("");
   const [importBusy, setImportBusy] = useState(false);
   const [reheatBusy, setReheatBusy] = useState(false);
@@ -591,7 +600,14 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   async function onOpenDocument(id: string) {
     try {
       const { url } = await openDocument(id);
-      window.open(url, "_blank", "noopener");
+      const meta = documentMetaForId(id, documents, messages);
+      setDocumentViewer({
+        id,
+        url,
+        label: meta.label,
+        mimeType: meta.mimeType,
+        filename: meta.filename,
+      });
     } catch (err) {
       setError(toErrorMessage(err));
     }
@@ -600,17 +616,16 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   async function onDownloadDocument(id: string) {
     try {
       const { url } = await openDocument(id);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "";
-      link.target = "_blank";
-      link.rel = "noopener";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const meta = documentMetaForId(id, documents, messages);
+      await downloadSignedUrl(url, meta.filename ?? meta.label);
     } catch (err) {
       setError(toErrorMessage(err));
     }
+  }
+
+  async function onDownloadViewer() {
+    if (!documentViewer) return;
+    await downloadSignedUrl(documentViewer.url, documentViewer.filename ?? documentViewer.label);
   }
 
   async function onDecide(id: string, decision: "approved" | "rejected") {
@@ -889,6 +904,14 @@ function Panel({ onLogout }: { onLogout: () => void }) {
           />
         ) : null}
       </main>
+
+      {documentViewer ? (
+        <DocumentViewerModal
+          viewer={documentViewer}
+          onClose={() => setDocumentViewer(null)}
+          onDownload={onDownloadViewer}
+        />
+      ) : null}
 
       <MobileTabBar page={page} waitingHumanCount={waitingHumanCount} onNavigate={setPage} />
     </div>
@@ -2723,6 +2746,76 @@ function AttachmentPreview({ attachment }: { attachment: PendingAttachment }) {
   );
 }
 
+function DocumentViewerModal({
+  viewer,
+  onClose,
+  onDownload,
+}: {
+  viewer: DocumentViewer;
+  onClose: () => void;
+  onDownload: () => void | Promise<void>;
+}) {
+  const mime = viewer.mimeType ?? "";
+  const isImage = mime.startsWith("image/");
+  const isVideo = mime.startsWith("video/");
+  const isAudio = mime.startsWith("audio/");
+  const isPdf = mime === "application/pdf" || viewer.filename?.toLowerCase().endsWith(".pdf");
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  return (
+    <div className="document-modal" role="dialog" aria-modal="true">
+      <button
+        type="button"
+        className="document-modal-backdrop"
+        aria-label="Fechar visualizador"
+        onClick={onClose}
+      />
+      <section className="document-modal-panel">
+        <header className="document-modal-header">
+          <div>
+            <strong>{viewer.filename ?? viewer.label}</strong>
+            <span>{mime || "arquivo"}</span>
+          </div>
+          <div>
+            <button type="button" className="btn btn-outline btn-sm" onClick={onDownload}>
+              <Download className="icon" />
+              Baixar
+            </button>
+            <button type="button" className="icon-button" aria-label="Fechar" onClick={onClose}>
+              <X className="icon" />
+            </button>
+          </div>
+        </header>
+        <div className="document-modal-body">
+          {isImage ? (
+            <img src={viewer.url} alt={viewer.filename ?? viewer.label} />
+          ) : isPdf ? (
+            <iframe title={viewer.filename ?? viewer.label} src={viewer.url} />
+          ) : isVideo ? (
+            <video src={viewer.url} controls />
+          ) : isAudio ? (
+            <audio src={viewer.url} controls />
+          ) : (
+            <div className="document-modal-fallback">
+              <FileText className="icon" />
+              <strong>Pré-visualização indisponível para este formato.</strong>
+              <span>Use o botão Baixar para abrir no seu dispositivo.</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function isTimelineMedia(message: MessageRow): boolean {
   return ["image", "audio", "video", "document"].includes(
     String(message.message_type ?? ""),
@@ -2778,6 +2871,66 @@ function attachDocumentFallbacksToMessages(
       media_size_bytes: document.size_bytes,
     };
   });
+}
+
+function documentMetaForId(
+  id: string,
+  documents: DocumentRow[],
+  messages: MessageRow[],
+): { label: string; filename: string | null; mimeType: string | null } {
+  const doc = documents.find((item) => item.id === id);
+  if (doc) {
+    return {
+      label: documentTypeLabel(doc.document_type),
+      filename: doc.original_filename,
+      mimeType: doc.mime_type,
+    };
+  }
+
+  const message = messages.find((item) => item.media_document_id === id);
+  if (message) {
+    const media = mediaInfo(message);
+    return {
+      label: media.label || "Arquivo",
+      filename: message.media_filename ?? null,
+      mimeType: message.media_mime_type ?? null,
+    };
+  }
+
+  return { label: "Arquivo", filename: null, mimeType: null };
+}
+
+function safeDownloadName(name: string): string {
+  return name.replace(/[\\/:*?"<>|]+/g, "-").trim() || "anexo-ir";
+}
+
+async function downloadSignedUrl(url: string, filename: string) {
+  const safeName = safeDownloadName(filename);
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Falha ao baixar arquivo");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = safeName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 500);
+    return;
+  } catch {
+    // Signed URLs can be cross-origin. If the blob download is blocked, keep a direct fallback.
+  }
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = safeName;
+  link.target = "_blank";
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 function messagePreview(message: MessageRow): string {

@@ -1,5 +1,9 @@
 # CHANGELOG_AI — IR Consultoria
 
+## 2026-08-24 — Visualizador interno de anexos
+
+- Anexos de conversa agora abrem em um modal dentro do próprio painel IR, sem jogar o operador para uma nova aba. O visualizador suporta imagem, PDF, vídeo e áudio, tem fechamento por `Esc`/clique fora e botão **Baixar** com tentativa de download direto via blob antes do fallback para URL assinada.
+
 ## 2026-08-24 — Abertura e download de imagens/documentos
 
 - Corrigida a experiência de anexos recebidos no detalhe da conversa: quando uma mídia inbound não vem com vínculo direto na mensagem, o painel tenta casar com documentos do caso por tipo e horário para renderizar/abrir a imagem na bolha. A lateral **Documentos do caso** agora exibe ações explícitas de **Abrir** e **Baixar**, evitando depender apenas do clique no card.

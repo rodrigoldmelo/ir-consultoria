@@ -1728,6 +1728,125 @@ button:disabled {
   color: var(--primary);
 }
 
+.document-modal {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+}
+
+.document-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: oklch(0.18 0.02 250 / 72%);
+}
+
+.document-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(1120px, 96vw);
+  height: min(820px, 92vh);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, white 14%, transparent);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 28px 80px oklch(0.18 0.02 250 / 38%);
+}
+
+.document-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+}
+
+.document-modal-header > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.document-modal-header > div:first-child {
+  display: block;
+}
+
+.document-modal-header strong,
+.document-modal-header span {
+  display: block;
+  min-width: 0;
+}
+
+.document-modal-header strong {
+  max-width: min(620px, 58vw);
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-modal-header span {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.document-modal-body {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background: color-mix(in oklch, var(--muted) 45%, black 4%);
+  padding: 16px;
+}
+
+.document-modal-body img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.document-modal-body iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: white;
+}
+
+.document-modal-body video {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  background: black;
+}
+
+.document-modal-body audio {
+  width: min(560px, 80vw);
+}
+
+.document-modal-fallback {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.document-modal-fallback .icon {
+  width: 42px;
+  height: 42px;
+}
+
 .document-row:hover {
   background: var(--muted);
 }
