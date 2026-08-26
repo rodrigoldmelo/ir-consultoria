@@ -373,7 +373,7 @@ export async function getConversationStats(): Promise<ConversationStats> {
   return { total: total ?? 0, statusCounts };
 }
 
-export async function listConversations(limit = 250): Promise<IrConversationPanelRow[]> {
+export async function listConversations(limit = 100): Promise<IrConversationPanelRow[]> {
   const db = getSupabaseAdmin();
   if (!db) return [];
 
