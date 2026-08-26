@@ -4,13 +4,14 @@ import {
   deleteMessageForPanel,
   getConversationById,
   getMessageForConversation,
+  getConversationStats,
   insertMessage,
   listConversations,
   listMessagesForPanel,
   touchConversation,
 } from "../db/conversations.js";
 import { listDocumentsForCase } from "../db/cases.js";
-import { listCases, listLeads } from "../db/leads.js";
+import { getLeadStats, listCases, listLeads } from "../db/leads.js";
 import { config } from "../config.js";
 import {
   headerTokenMatches,
@@ -87,11 +88,16 @@ router.get("/status", (_req, res) => {
 router.get("/leads", async (_req, res) => {
   try {
     if (!isSupabaseConfigured()) {
-      res.json({ leads: [], configured: false });
+      res.json({
+        leads: [],
+        stats: { total: 0, statusCounts: {} },
+        total: 0,
+        configured: false,
+      });
       return;
     }
-    const leads = await listLeads();
-    res.json({ leads, configured: true });
+    const [leads, stats] = await Promise.all([listLeads(), getLeadStats()]);
+    res.json({ leads, stats, total: stats.total, configured: true });
   } catch (err) {
     console.error("[panel/leads]", err);
     res.status(500).json({ error: "failed_to_list_leads" });
@@ -293,11 +299,19 @@ router.post("/reheat/:id/decide", async (req, res) => {
 router.get("/conversations", async (_req, res) => {
   try {
     if (!isSupabaseConfigured()) {
-      res.json({ conversations: [], configured: false });
+      res.json({
+        conversations: [],
+        stats: { total: 0, statusCounts: {} },
+        total: 0,
+        configured: false,
+      });
       return;
     }
-    const conversations = await listConversations();
-    res.json({ conversations, configured: true });
+    const [conversations, stats] = await Promise.all([
+      listConversations(),
+      getConversationStats(),
+    ]);
+    res.json({ conversations, stats, total: stats.total, configured: true });
   } catch (err) {
     console.error("[panel/conversations]", err);
     res.status(500).json({ error: "failed_to_list_conversations" });

@@ -19,6 +19,24 @@ export type IrLeadRow = {
   updated_at: string;
 };
 
+export type LeadStats = {
+  total: number;
+  statusCounts: Record<string, number>;
+};
+
+const LEAD_STATUS_VALUES: LeadStatus[] = [
+  "new",
+  "template_queued",
+  "template_sending",
+  "template_sent",
+  "awaiting_reply",
+  "conversation_started",
+  "converted_to_case",
+  "lost",
+  "invalid",
+  "opt_out",
+];
+
 export async function findLeadByMetaId(
   metaLeadgenId: string,
 ): Promise<IrLeadRow | null> {
@@ -226,7 +244,45 @@ export async function listStaleTemplateClaims(
   return (data ?? []) as IrLeadRow[];
 }
 
-export async function listLeads(limit = 5000): Promise<IrLeadRow[]> {
+export async function getLeadStats(): Promise<LeadStats> {
+  const db = getSupabaseAdmin();
+  if (!db) return { total: 0, statusCounts: {} };
+
+  const [{ count: total, error: totalError }, ...statusResults] =
+    await Promise.all([
+      db.from("ir_leads").select("id", { count: "exact", head: true }),
+      ...LEAD_STATUS_VALUES.map((status) =>
+        db
+          .from("ir_leads")
+          .select("id", { count: "exact", head: true })
+          .eq("status", status),
+      ),
+    ]);
+
+  if (totalError) {
+    console.error("[db/leads] stats total", totalError.message);
+  }
+
+  const statusCounts: Record<string, number> = {};
+  statusResults.forEach((result, index) => {
+    const status = LEAD_STATUS_VALUES[index];
+    if (result.error) {
+      console.error("[db/leads] stats status", status, result.error.message);
+      statusCounts[status] = 0;
+    } else {
+      statusCounts[status] = result.count ?? 0;
+    }
+  });
+
+  statusCounts.templates =
+    (statusCounts.template_queued ?? 0) +
+    (statusCounts.template_sending ?? 0) +
+    (statusCounts.template_sent ?? 0);
+
+  return { total: total ?? 0, statusCounts };
+}
+
+export async function listLeads(limit = 500): Promise<IrLeadRow[]> {
   const db = getSupabaseAdmin();
   if (!db) return [];
 

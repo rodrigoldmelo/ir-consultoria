@@ -31,6 +31,23 @@ export type IrConversationPanelRow = IrConversationRow & {
   source: string | null;
 };
 
+export type ConversationStats = {
+  total: number;
+  statusCounts: Record<string, number>;
+};
+
+const CONVERSATION_STATUS_VALUES: ConversationStatus[] = [
+  "awaiting_first_reply",
+  "in_service",
+  "qualifying",
+  "waiting_documents",
+  "documents_partial",
+  "documents_complete",
+  "waiting_human",
+  "opt_out",
+  "closed",
+];
+
 type ParsedLeadPayload = {
   parsed_form?: {
     is_doctor?: boolean | null;
@@ -320,7 +337,43 @@ export async function messageExistsByExternalId(
   return Boolean(data);
 }
 
-export async function listConversations(limit = 5000): Promise<IrConversationPanelRow[]> {
+export async function getConversationStats(): Promise<ConversationStats> {
+  const db = getSupabaseAdmin();
+  if (!db) return { total: 0, statusCounts: {} };
+
+  const [{ count: total, error: totalError }, ...statusResults] =
+    await Promise.all([
+      db.from("ir_conversations").select("id", { count: "exact", head: true }),
+      ...CONVERSATION_STATUS_VALUES.map((status) =>
+        db
+          .from("ir_conversations")
+          .select("id", { count: "exact", head: true })
+          .eq("status", status),
+      ),
+    ]);
+
+  if (totalError) {
+    console.error("[db/conversations] stats total", totalError.message);
+  }
+
+  const statusCounts: Record<string, number> = {};
+  statusResults.forEach((result, index) => {
+    const status = CONVERSATION_STATUS_VALUES[index];
+    if (result.error) {
+      console.error("[db/conversations] stats status", status, result.error.message);
+      statusCounts[status] = 0;
+    } else {
+      statusCounts[status] = result.count ?? 0;
+    }
+  });
+  statusCounts.documents_pending =
+    (statusCounts.waiting_documents ?? 0) + (statusCounts.documents_partial ?? 0);
+  statusCounts.all = total ?? 0;
+
+  return { total: total ?? 0, statusCounts };
+}
+
+export async function listConversations(limit = 250): Promise<IrConversationPanelRow[]> {
   const db = getSupabaseAdmin();
   if (!db) return [];
 

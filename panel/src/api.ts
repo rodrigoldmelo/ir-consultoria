@@ -73,7 +73,12 @@ export async function fetchPanelStatus() {
 export async function fetchLeads() {
   const res = await panelFetch("/api/ir/panel/leads");
   if (!res.ok) throw new Error(`leads_${res.status}`);
-  return res.json() as Promise<{ leads: unknown[]; configured?: boolean }>;
+  return res.json() as Promise<{
+    leads: unknown[];
+    stats?: { total: number; statusCounts: Record<string, number> };
+    total?: number;
+    configured?: boolean;
+  }>;
 }
 
 export async function fetchReheat() {
@@ -126,6 +131,8 @@ export async function fetchConversations() {
   if (!res.ok) throw new Error(`conversations_${res.status}`);
   return res.json() as Promise<{
     conversations: unknown[];
+    stats?: { total: number; statusCounts: Record<string, number> };
+    total?: number;
     configured?: boolean;
   }>;
 }

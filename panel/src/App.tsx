@@ -77,6 +77,7 @@ import type {
   MessageRow,
   PanelPage,
   ReheatRow,
+  StatsSummary,
 } from "./types";
 
 type NavItem = {
@@ -253,6 +254,14 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   const [reheat, setReheat] = useState<ReheatRow[]>([]);
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
+  const [leadStats, setLeadStats] = useState<StatsSummary>({
+    total: 0,
+    statusCounts: {},
+  });
+  const [conversationStats, setConversationStats] = useState<StatsSummary>({
+    total: 0,
+    statusCounts: {},
+  });
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
@@ -300,9 +309,6 @@ function Panel({ onLogout }: { onLogout: () => void }) {
 
   const integrations = (health?.integrations ?? {}) as Record<string, boolean>;
   const selectedConversation = conversations.find((c) => c.id === selectedConvId);
-  const waitingHumanCount = conversations.filter(
-    (c) => c.status === "waiting_human",
-  ).length;
 
   function openConversations(filter: ConversationFilter) {
     setConversationFilter(filter);
@@ -311,6 +317,15 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   }
 
   const statusCounts = useMemo(() => {
+    if (
+      conversationStats.total > 0 ||
+      Object.keys(conversationStats.statusCounts).length > 0
+    ) {
+      return {
+        ...conversationStats.statusCounts,
+        all: conversationStats.total,
+      };
+    }
     const counts: Record<string, number> = { all: conversations.length };
     for (const conversation of conversations) {
       counts[conversation.status] = (counts[conversation.status] ?? 0) + 1;
@@ -318,7 +333,9 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     counts.documents_pending =
       (counts.waiting_documents ?? 0) + (counts.documents_partial ?? 0);
     return counts;
-  }, [conversations]);
+  }, [conversationStats, conversations]);
+
+  const waitingHumanCount = statusCounts.waiting_human ?? 0;
 
   const filteredConversations = useMemo(() => {
     const q = conversationSearch.trim().toLowerCase();
@@ -361,21 +378,25 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         return raw ? Date.now() - new Date(raw).getTime() <= 24 * 60 * 60 * 1000 : false;
       }).length;
       const advanced = conversations.filter((conversation) =>
-        [
-          "qualifying",
-          "waiting_documents",
-          "documents_partial",
-          "documents_complete",
-          "waiting_human",
-        ].includes(conversation.status),
+        ["qualifying", "waiting_documents", "documents_partial", "documents_complete", "waiting_human"].includes(
+          conversation.status,
+        ),
       ).length;
-      const rate = conversations.length
-        ? `${Math.round((advanced / conversations.length) * 100)}%`
+      const conversationTotal = conversationStats.total || conversations.length;
+      const advancedTotal =
+        (statusCounts.qualifying ?? 0) +
+        (statusCounts.waiting_documents ?? 0) +
+        (statusCounts.documents_partial ?? 0) +
+        (statusCounts.documents_complete ?? 0) +
+        (statusCounts.waiting_human ?? 0) ||
+        advanced;
+      const rate = conversationTotal
+        ? `${Math.round((advancedTotal / conversationTotal) * 100)}%`
         : "0%";
       return [
         {
           label: "Total de conversas",
-          value: conversations.length,
+          value: conversationTotal,
           hint: "WhatsApp IR",
           icon: MessageSquare,
           filter: "all" as ConversationFilter,
@@ -388,21 +409,25 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         },
         {
           label: "Leads",
-          value: leads.length,
+          value: leadStats.total || leads.length,
           hint: "Formulário Meta",
           icon: Users,
         },
         {
           label: "Templates",
-          value: leads.filter((lead) => lead.status.includes("template")).length,
+          value:
+            leadStats.statusCounts.templates ??
+            leads.filter((lead) => lead.status.includes("template")).length,
           hint: "Contato inicial",
           icon: Send,
         },
         {
           label: "Aguardando CNIS",
-          value: conversations.filter((c) =>
-            ["waiting_documents", "documents_partial"].includes(c.status),
-          ).length,
+          value:
+            statusCounts.documents_pending ??
+            conversations.filter((c) =>
+              ["waiting_documents", "documents_partial"].includes(c.status),
+            ).length,
           hint: "Docs pendentes",
           icon: FileText,
           filter: "documents_pending" as ConversationFilter,
@@ -423,7 +448,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         },
       ];
     },
-    [conversations, leads, waitingHumanCount],
+    [conversationStats.total, conversations, leadStats, leads, statusCounts, waitingHumanCount],
   );
 
   async function onLogoutClick() {
@@ -446,9 +471,18 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       setHealth(h);
       setStatus(s);
       setLeads((l.leads ?? []) as LeadRow[]);
+      setLeadStats(
+        l.stats ?? { total: l.total ?? (l.leads ?? []).length, statusCounts: {} },
+      );
       setReheat((r.items ?? []) as ReheatRow[]);
       setImports((i.imports ?? []) as ImportRow[]);
       setConversations((c.conversations ?? []) as ConversationRow[]);
+      setConversationStats(
+        c.stats ?? {
+          total: c.total ?? (c.conversations ?? []).length,
+          statusCounts: {},
+        },
+      );
       setNote([r.note, i.note].filter(Boolean).join(" · "));
     } catch (err) {
       if (err instanceof AuthRequiredError) return;
@@ -491,7 +525,15 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     const timer = window.setInterval(() => {
       void fetchConversations()
-        .then((result) => setConversations((result.conversations ?? []) as ConversationRow[]))
+        .then((result) => {
+          setConversations((result.conversations ?? []) as ConversationRow[]);
+          setConversationStats(
+            result.stats ?? {
+              total: result.total ?? (result.conversations ?? []).length,
+              statusCounts: {},
+            },
+          );
+        })
         .catch((err) => {
           if (!(err instanceof AuthRequiredError)) setError(toErrorMessage(err));
         });
@@ -510,6 +552,12 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       void Promise.all([fetchLeads(), fetchReheat()])
         .then(([leadResult, reheatResult]) => {
           setLeads((leadResult.leads ?? []) as LeadRow[]);
+          setLeadStats(
+            leadResult.stats ?? {
+              total: leadResult.total ?? (leadResult.leads ?? []).length,
+              statusCounts: {},
+            },
+          );
           setReheat((reheatResult.items ?? []) as ReheatRow[]);
         })
         .catch((err) => {
@@ -1009,6 +1057,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         {page === "leads" ? (
           <LeadsPage
             leads={leads}
+            leadStats={leadStats}
             busyLeadId={leadOutreachBusyId}
             onSendInitial={(lead) => void onLeadInitialOutreach(lead)}
           />
@@ -1932,7 +1981,10 @@ function ConversationsPage({
       <header className="list-header">
         <div>
           <h1>Inbox de conversas</h1>
-          <p>{allConversations.length} conversas · atualizado em tempo quase real</p>
+          <p>
+            {statusCounts.all ?? allConversations.length} conversas · atualizado em tempo
+            quase real
+          </p>
         </div>
         <div className="searchbox">
           <Search className="icon" />
@@ -2051,20 +2103,24 @@ function ConversationsPage({
 
 function LeadsPage({
   leads,
+  leadStats,
   busyLeadId,
   onSendInitial,
 }: {
   leads: LeadRow[];
+  leadStats: StatsSummary;
   busyLeadId: string | null;
   onSendInitial: (lead: LeadRow) => void;
 }) {
+  const totalLeads = leadStats.total || leads.length;
+  const loadedCount = leads.length;
   return (
     <div className="page-stack">
       <section className="stats-grid outreach-stats">
         <MetricCard
           label="Total de leads"
-          value={leads.length}
-          hint="Base carregada no painel"
+          value={totalLeads}
+          hint="Base total no sistema"
           icon={Users}
         />
         <MetricCard
@@ -2075,24 +2131,38 @@ function LeadsPage({
         />
         <MetricCard
           label="Templates"
-          value={leads.filter((lead) => lead.status.includes("template")).length}
+          value={
+            leadStats.statusCounts.templates ??
+            leads.filter((lead) => lead.status.includes("template")).length
+          }
           hint="Fila/envio inicial"
           icon={Send}
         />
         <MetricCard
           label="Fechados"
-          value={leads.filter((lead) => lead.status === "opt_out").length}
+          value={
+            leadStats.statusCounts.opt_out ??
+            leads.filter((lead) => lead.status === "opt_out").length
+          }
           hint="Opt-out técnico"
           icon={X}
         />
         <MetricCard
           label="Convertidos"
-          value={leads.filter((lead) => lead.status === "converted_to_case").length}
+          value={
+            leadStats.statusCounts.converted_to_case ??
+            leads.filter((lead) => lead.status === "converted_to_case").length
+          }
           hint="Casos criados"
           icon={CheckCircle2}
         />
       </section>
-      <PanelCard title="Leads Meta / formulário" badge={String(leads.length)} icon={Users}>
+      <PanelCard title="Leads Meta / formulário" badge={String(totalLeads)} icon={Users}>
+        {totalLeads > loadedCount ? (
+          <p className="panel-note">
+            Mostrando os {loadedCount} leads mais recentes de {totalLeads} no total.
+          </p>
+        ) : null}
         <DataTable
           columns={["Nome", "Telefone", "Email", "Origem", "Status", "Criado", "Ação"]}
           empty="Nenhum lead ainda. Use o webhook Meta Lead Ads ou o teste de primeiro contato."

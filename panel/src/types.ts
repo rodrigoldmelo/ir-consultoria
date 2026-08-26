@@ -7,6 +7,11 @@ export type PanelPage =
   | "importar"
   | "config";
 
+export type StatsSummary = {
+  total: number;
+  statusCounts: Record<string, number>;
+};
+
 export type LeadRow = {
   id: string;
   name: string | null;
