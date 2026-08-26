@@ -44,7 +44,13 @@ async function shouldSendDocumentReminder(job: Record<string, unknown>): Promise
 
   const conversation = await getConversationById(conversationId);
   if (!conversation) return false;
-  if (!["qualifying", "waiting_documents"].includes(conversation.status)) return false;
+  if (
+    !["qualifying", "waiting_documents", "documents_partial"].includes(
+      conversation.status,
+    )
+  ) {
+    return false;
+  }
   if (await isPhoneOptedOut(conversation.phone)) return false;
 
   const db = getSupabaseAdmin();

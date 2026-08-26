@@ -11,6 +11,7 @@ export type LeadRow = {
   id: string;
   name: string | null;
   phone: string | null;
+  email?: string | null;
   status: string;
   source?: string | null;
   created_at?: string;
@@ -66,6 +67,13 @@ export type DocumentRow = {
   mime_type: string | null;
   size_bytes: number | null;
   created_at: string;
+};
+
+export type AdvboxCaseInfo = {
+  clientId?: string | null;
+  caseId?: string | null;
+  taskId?: string | null;
+  assignedTo?: string | null;
 };
 
 export type MessageRow = {

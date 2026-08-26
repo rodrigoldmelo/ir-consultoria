@@ -82,8 +82,15 @@ export const config = {
       "retomar_analise_inss_01",
   },
   advbox: {
-    baseUrl: process.env.IR_ADVBOX_BASE_URL ?? "",
+    baseUrl: (process.env.IR_ADVBOX_BASE_URL ?? "").replace(/\/$/, ""),
     apiToken: process.env.IR_ADVBOX_API_TOKEN ?? "",
+    originId: process.env.IR_ADVBOX_ORIGIN_ID ?? "60088",
+    responsibleUserId: process.env.IR_ADVBOX_RESPONSIBLE_USER_ID ?? "",
+    calculationUserId: process.env.IR_ADVBOX_CALCULATION_USER_ID ?? "87062",
+    taskCreatorUserId: process.env.IR_ADVBOX_TASK_CREATOR_USER_ID ?? "",
+    taskTypeId: process.env.IR_ADVBOX_TASK_TYPE_ID ?? "",
+    stageId: process.env.IR_ADVBOX_STAGE_ID ?? "",
+    caseTypeId: process.env.IR_ADVBOX_CASE_TYPE_ID ?? "",
   },
   workers: {
     template: process.env.IR_TEMPLATE_WORKER_ENABLED !== "false",

@@ -205,7 +205,7 @@ export async function schedulePendingDocumentReminders(limit = 100): Promise<voi
     .from("ir_conversations")
     .select("id, lead_id, phone, status")
     .in("id", conversationIds)
-    .in("status", ["qualifying", "waiting_documents"]);
+    .in("status", ["qualifying", "waiting_documents", "documents_partial"]);
 
   if (conversationError) {
     console.error("[drip] pending document reminders conversations", conversationError.message);

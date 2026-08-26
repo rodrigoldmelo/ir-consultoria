@@ -41,6 +41,7 @@ import {
   sendManualFollowUp,
   type ManualFollowUpType,
 } from "../services/manual-follow-up.js";
+import { syncConversationToAdvbox } from "../services/advbox.js";
 import { decideReheat } from "../services/reheat-decision.js";
 import { runReheatBatch } from "../services/reheat-scorer.js";
 
@@ -314,7 +315,7 @@ router.get("/conversations/:id/documents", async (req, res) => {
 
     const { data: irCase } = await db
       .from("ir_cases")
-      .select("id, status, missing_information")
+      .select("id, status, missing_information, advbox_client_id, advbox_case_id, advbox_task_id, assigned_to")
       .eq("conversation_id", String(req.params.id))
       .order("created_at", { ascending: false })
       .limit(1)
@@ -339,10 +340,43 @@ router.get("/conversations/:id/documents", async (req, res) => {
       missing,
       caseStatus: irCase.status,
       caseId: irCase.id,
+      advbox: {
+        clientId: irCase.advbox_client_id ?? null,
+        caseId: irCase.advbox_case_id ?? null,
+        taskId: irCase.advbox_task_id ?? null,
+        assignedTo: irCase.assigned_to ?? null,
+      },
     });
   } catch (err) {
     console.error("[panel/documents]", err);
     res.status(500).json({ error: "failed_to_list_documents" });
+  }
+});
+
+router.post("/conversations/:id/advbox-sync", async (req, res) => {
+  try {
+    const cpf = String(req.body?.cpf ?? "").trim();
+    const result = await syncConversationToAdvbox({
+      conversationId: String(req.params.id),
+      cpf: cpf || null,
+    });
+    if (!result.ok) {
+      const status =
+        result.error === "conversation_not_found" || result.error === "case_not_found"
+          ? 404
+          : result.error === "cpf_required" ||
+              result.error === "invalid_cpf" ||
+              result.error === "missing_required_documents" ||
+              result.error.startsWith("missing_env:")
+            ? 400
+            : 502;
+      res.status(status).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("[panel/advbox-sync]", err);
+    res.status(500).json({ ok: false, error: "advbox_sync_failed" });
   }
 });
 

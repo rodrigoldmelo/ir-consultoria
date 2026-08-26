@@ -143,7 +143,30 @@ export async function fetchConversationDocuments(id: string) {
     documents: unknown[];
     missing: string[];
     caseStatus?: string | null;
+    advbox?: {
+      clientId?: string | null;
+      caseId?: string | null;
+      taskId?: string | null;
+      assignedTo?: string | null;
+    };
   }>;
+}
+
+export async function syncConversationToAdvbox(id: string, cpf?: string | null) {
+  const res = await panelFetch(`/api/ir/panel/conversations/${id}/advbox-sync`, {
+    method: "POST",
+    body: JSON.stringify({ cpf: cpf?.trim() || undefined }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `advbox_sync_${res.status}`);
+  return body as {
+    ok: true;
+    cpf: string;
+    customerId: string;
+    lawsuitId: string;
+    taskId: string;
+    reused: boolean;
+  };
 }
 
 export async function openDocument(id: string) {

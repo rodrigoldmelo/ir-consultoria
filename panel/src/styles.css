@@ -403,12 +403,19 @@ button:disabled {
 
 .metric-card {
   display: flex;
+  width: 100%;
+  text-align: left;
   gap: 10px;
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card);
   padding: 16px;
+}
+
+.metric-card.clickable:not(:disabled):hover {
+  border-color: color-mix(in oklch, var(--primary) 28%, var(--border));
+  box-shadow: 0 8px 22px oklch(0.18 0.03 258 / 8%);
 }
 
 .metric-card.attention {
@@ -594,6 +601,15 @@ button:disabled {
   justify-content: end;
   align-items: center;
   gap: 5px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: center;
+}
+
+.status-bar:hover em,
+.status-bar:hover strong {
+  color: var(--foreground);
 }
 
 .status-bar span {
@@ -735,6 +751,78 @@ button:disabled {
   border-color: color-mix(in oklch, var(--success) 20%, transparent);
   background: color-mix(in oklch, var(--success) 8%, white);
   color: color-mix(in oklch, var(--success) 84%, black);
+}
+
+.badge.accept {
+  border-color: color-mix(in oklch, oklch(0.76 0.16 86) 30%, transparent);
+  background: color-mix(in oklch, oklch(0.76 0.16 86) 14%, white);
+  color: oklch(0.43 0.11 78);
+}
+
+.badge.qualify {
+  border-color: color-mix(in oklch, oklch(0.68 0.12 150) 28%, transparent);
+  background: color-mix(in oklch, oklch(0.68 0.12 150) 11%, white);
+  color: oklch(0.42 0.1 150);
+}
+
+.badge.docs {
+  border-color: color-mix(in oklch, oklch(0.58 0.16 300) 28%, transparent);
+  background: color-mix(in oklch, oklch(0.58 0.16 300) 10%, white);
+  color: oklch(0.45 0.15 300);
+}
+
+.badge.partial {
+  border-color: color-mix(in oklch, oklch(0.66 0.12 218) 30%, transparent);
+  background: color-mix(in oklch, oklch(0.66 0.12 218) 12%, white);
+  color: oklch(0.43 0.12 218);
+}
+
+.badge.complete {
+  border-color: color-mix(in oklch, oklch(0.57 0.14 155) 30%, transparent);
+  background: color-mix(in oklch, oklch(0.57 0.14 155) 12%, white);
+  color: oklch(0.38 0.12 155);
+}
+
+.badge.human {
+  border-color: color-mix(in oklch, oklch(0.55 0.15 246) 30%, transparent);
+  background: color-mix(in oklch, oklch(0.55 0.15 246) 11%, white);
+  color: oklch(0.43 0.14 246);
+}
+
+.badge.queued {
+  border-color: color-mix(in oklch, oklch(0.62 0.03 255) 28%, transparent);
+  background: color-mix(in oklch, oklch(0.62 0.03 255) 12%, white);
+  color: oklch(0.43 0.04 255);
+}
+
+.badge.sending {
+  border-color: color-mix(in oklch, oklch(0.6 0.18 272) 30%, transparent);
+  background: color-mix(in oklch, oklch(0.6 0.18 272) 11%, white);
+  color: oklch(0.44 0.16 272);
+}
+
+.badge.sent {
+  border-color: color-mix(in oklch, oklch(0.55 0.12 190) 30%, transparent);
+  background: color-mix(in oklch, oklch(0.55 0.12 190) 11%, white);
+  color: oklch(0.38 0.11 190);
+}
+
+.badge.closed {
+  border-color: color-mix(in oklch, var(--destructive) 28%, transparent);
+  background: color-mix(in oklch, var(--destructive) 11%, white);
+  color: var(--destructive);
+}
+
+.badge.client {
+  border-color: color-mix(in oklch, oklch(0.52 0.14 142) 32%, transparent);
+  background: color-mix(in oklch, oklch(0.52 0.14 142) 13%, white);
+  color: oklch(0.34 0.12 142);
+}
+
+.badge.case {
+  border-color: color-mix(in oklch, oklch(0.53 0.14 32) 30%, transparent);
+  background: color-mix(in oklch, oklch(0.53 0.14 32) 11%, white);
+  color: oklch(0.42 0.13 32);
 }
 
 .funnel {
@@ -2283,6 +2371,75 @@ th {
   font-size: 13px;
 }
 
+.reheat-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.reheat-status-card {
+  min-height: 96px;
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 12px;
+  text-align: left;
+}
+
+.reheat-status-card.active,
+.reheat-status-card:hover {
+  border-color: color-mix(in oklch, var(--primary) 36%, var(--border));
+  box-shadow: 0 8px 20px oklch(0.18 0.03 258 / 7%);
+}
+
+.reheat-status-card strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.reheat-status-card span:last-child {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.reheat-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 160px minmax(190px, 1fr) auto auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.reheat-controls label {
+  display: grid;
+  gap: 7px;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.reheat-controls input,
+.reheat-controls select {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--input);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 0 10px;
+  outline: none;
+}
+
+.reheat-controls label span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .code-box {
   display: grid;
   gap: 8px;
@@ -2730,7 +2887,8 @@ th {
   }
 
   .outreach-stats,
-  .outreach-controls {
+  .outreach-controls,
+  .reheat-controls {
     grid-template-columns: 1fr;
   }
 

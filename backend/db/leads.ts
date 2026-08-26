@@ -226,7 +226,7 @@ export async function listStaleTemplateClaims(
   return (data ?? []) as IrLeadRow[];
 }
 
-export async function listLeads(limit = 50): Promise<IrLeadRow[]> {
+export async function listLeads(limit = 5000): Promise<IrLeadRow[]> {
   const db = getSupabaseAdmin();
   if (!db) return [];
 

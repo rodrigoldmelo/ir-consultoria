@@ -1,5 +1,15 @@
 # CHANGELOG_AI — IR Consultoria
 
+## 2026-08-26 — Opt-out tardio fecha a conversa
+
+- Respostas de desinteresse agora são reconhecidas em qualquer etapa do funil, inclusive após templates/follow-ups como o lembrete de CNIS. O orquestrador cobre variações como “não tenho interesse”, “não tem mais interesse” e “encerrar contato”, salva o telefone na supressão global de disparos, marca leads relacionados como `opt_out` para bloqueio técnico e fecha a conversa no painel (`closed`). Registros antigos que ainda estiverem com status interno `opt_out` passam a aparecer como **Fechado**.
+- Estados do painel ganharam tons próprios para facilitar leitura em volume: aceite, qualificação, aguardando docs, docs parciais, docs completos, humano, templates e fechado usam cores diferentes. Quando o lead envia mídia/documento e ainda falta algum item, a conversa passa para **Docs enviados parcialmente**; se completar CNIS + DIRF/rendimentos, passa para **Docs completos** e continua silenciosa para análise humana. Workers de lembrete continuam considerando docs parciais como pendência.
+- Dashboard e bases operacionais deixaram de ficar presos aos recortes antigos: Conversas e Leads agora carregam até 5.000 registros, e o painel atualiza conversas automaticamente a cada 5s e Leads/Reaquecer a cada 15s. Cards principais e barras de status do Dashboard viraram atalhos para abrir **Conversas** já filtrado. A aba **Reaquecer** ganhou campanha por estado: filtro por etapa do funil, dias sem atividade, escolha de template aprovado e disparo manual para as conversas elegíveis, mantendo a fila de score como apoio.
+
+## 2026-08-25 — Botão manual Advbox
+
+- Adicionada a primeira integração manual com Advbox no detalhe da conversa: quando CNIS e DIRF/rendimentos estão completos, a lateral libera **Enviar para Advbox**. O backend tenta extrair CPF dos documentos salvos, aceita CPF informado pelo operador quando a extração não encontra um CPF válido, cria contato com origem IR Consultoria, cria caso/processo, cria tarefa de cálculo para Joselia e grava os IDs `advbox_*` no caso para evitar duplicidade; documentos entram inicialmente como links seguros na descrição da tarefa até validação do endpoint de upload/anexo do Advbox.
+
 ## 2026-08-24 — Lembrete pré-24h e múltiplos prints de documentos
 
 - O worker de lembrete dentro da janela (`IR_INWINDOW_NUDGE_ENABLED`) deixou de ser genérico e passou a atuar só como lembrete documental: após o envio do passo a passo CNIS + DIRF, espera por padrão 20h (`IR_DOCUMENT_INWINDOW_NUDGE_HOURS`) e envia texto livre apenas se a conversa ainda estiver em qualificação/aguardando documentos e sem CNIS/DIRF salvo. Mídias recebidas durante takeover humano agora continuam sendo salvas/classificadas como documentos do caso, mas sem resposta automática da IA. A lateral de documentos diferencia múltiplos anexos do mesmo tipo, como prints sequenciais de DIRF/rendimentos.

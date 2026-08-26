@@ -15,6 +15,8 @@ export type ConversationStatus =
   | "in_service"
   | "qualifying"
   | "waiting_documents"
+  | "documents_partial"
+  | "documents_complete"
   | "waiting_human"
   | "opt_out"
   | "closed";

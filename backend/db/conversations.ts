@@ -320,7 +320,7 @@ export async function messageExistsByExternalId(
   return Boolean(data);
 }
 
-export async function listConversations(limit = 80): Promise<IrConversationPanelRow[]> {
+export async function listConversations(limit = 5000): Promise<IrConversationPanelRow[]> {
   const db = getSupabaseAdmin();
   if (!db) return [];
 
@@ -576,7 +576,12 @@ export async function deleteMessageForPanel(
   return true;
 }
 
-const NUDGE_STATUSES = ["qualifying", "waiting_documents", "in_service"];
+const NUDGE_STATUSES = [
+  "qualifying",
+  "waiting_documents",
+  "documents_partial",
+  "in_service",
+];
 
 /** Conversas na janela 24h em que o agente falou por último e o lead sumiu. */
 export async function listConversationsDueForInWindowNudge(input: {

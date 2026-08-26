@@ -7,6 +7,10 @@ export type IrCaseRow = {
   conversation_id: string | null;
   status: CaseStatus;
   missing_information: unknown;
+  advbox_client_id: string | null;
+  advbox_case_id: string | null;
+  advbox_task_id: string | null;
+  assigned_to: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -51,7 +55,14 @@ export async function findOrCreateCaseForConversation(input: {
 
 export async function updateCase(
   caseId: string,
-  patch: { status?: CaseStatus; missingInformation?: unknown },
+  patch: {
+    status?: CaseStatus;
+    missingInformation?: unknown;
+    advboxClientId?: string | null;
+    advboxCaseId?: string | null;
+    advboxTaskId?: string | null;
+    assignedTo?: string | null;
+  },
 ): Promise<void> {
   const db = getSupabaseAdmin();
   if (!db) return;
@@ -62,6 +73,18 @@ export async function updateCase(
   if (patch.status) updates.status = patch.status;
   if (patch.missingInformation !== undefined) {
     updates.missing_information = patch.missingInformation;
+  }
+  if (patch.advboxClientId !== undefined) {
+    updates.advbox_client_id = patch.advboxClientId;
+  }
+  if (patch.advboxCaseId !== undefined) {
+    updates.advbox_case_id = patch.advboxCaseId;
+  }
+  if (patch.advboxTaskId !== undefined) {
+    updates.advbox_task_id = patch.advboxTaskId;
+  }
+  if (patch.assignedTo !== undefined) {
+    updates.assigned_to = patch.assignedTo;
   }
 
   const { error } = await db.from("ir_cases").update(updates).eq("id", caseId);

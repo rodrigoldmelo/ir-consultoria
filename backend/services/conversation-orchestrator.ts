@@ -31,21 +31,28 @@ import {
 } from "./post-template-briefing.js";
 import type { IrLeadRow } from "../db/leads.js";
 
+function normalizeIntentText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function isOptOut(text: string): boolean {
+  const normalized = normalizeIntentText(text);
   return (
-    text.includes("parar") ||
-    text.includes("não quero") ||
-    text.includes("nao quero") ||
+    normalized.includes("parar") ||
+    normalized.includes("nao quero") ||
     // botões "Não tenho interesse" / "Não tenho mais interesse" do template inicial
-    text.includes("não tenho mais interesse") ||
-    text.includes("nao tenho mais interesse") ||
-    text.includes("não tenho interesse") ||
-    text.includes("nao tenho interesse") ||
-    text.includes("sem interesse") ||
-    text.includes("opt out") ||
-    text.includes("remover") ||
-    text.includes("descadastrar") ||
-    text.includes("cancelar contato")
+    normalized.includes("nao tenho mais interesse") ||
+    normalized.includes("nao tenho interesse") ||
+    normalized.includes("nao tem mais interesse") ||
+    normalized.includes("sem interesse") ||
+    normalized.includes("opt out") ||
+    normalized.includes("remover") ||
+    normalized.includes("descadastrar") ||
+    normalized.includes("cancelar contato") ||
+    normalized.includes("encerrar contato")
   );
 }
 
@@ -205,7 +212,10 @@ export async function handleInboundWhatsApp(input: {
   // Qualquer reply cancela drip de templates (janela 24h aberta)
   await cancelDripForPhone(input.phone, "first_reply");
 
-  if (conversation?.status === "waiting_human") {
+  if (
+    conversation?.status === "waiting_human" ||
+    conversation?.status === "documents_complete"
+  ) {
     if (isOptOut(text)) {
       await cancelDripForPhone(input.phone, "opt_out");
       await suppressPhone({
@@ -216,7 +226,7 @@ export async function handleInboundWhatsApp(input: {
         conversationId: conversation.id,
         leadId: conversation.lead_id,
       });
-      await touchConversation(conversation.id, { status: "opt_out" });
+      await touchConversation(conversation.id, { status: "closed" });
       await recordAuditEvent({
         entityType: "conversation",
         entityId: conversation.id,
@@ -276,7 +286,7 @@ export async function handleInboundWhatsApp(input: {
         conversationId: conversation.id,
         leadId: conversation.lead_id,
       });
-      await touchConversation(conversation.id, { status: "opt_out" });
+      await touchConversation(conversation.id, { status: "closed" });
       await recordAuditEvent({
         entityType: "conversation",
         entityId: conversation.id,
@@ -368,7 +378,7 @@ export async function handleInboundWhatsApp(input: {
         "document_received",
       );
       await touchConversation(conversation.id, {
-        status: stored.complete ? "waiting_human" : "waiting_documents",
+        status: stored.complete ? "documents_complete" : "documents_partial",
       });
       await replyAndPersist(
         input.phone,

@@ -63,11 +63,13 @@ import {
   sendOutreachBatch,
   sendTestDrip,
   sendTestOutreach,
+  syncConversationToAdvbox,
   takeoverConversation,
   uploadImportCsv,
 } from "./api";
 import { Login } from "./Login";
 import type {
+  AdvboxCaseInfo,
   ConversationRow,
   DocumentRow,
   ImportRow,
@@ -83,7 +85,26 @@ type NavItem = {
   icon: LucideIcon;
 };
 
-type StatusTone = "default" | "success" | "warning" | "danger" | "muted" | "info" | "soft";
+type StatusTone =
+  | "default"
+  | "success"
+  | "warning"
+  | "danger"
+  | "muted"
+  | "info"
+  | "soft"
+  | "accept"
+  | "qualify"
+  | "docs"
+  | "partial"
+  | "complete"
+  | "human"
+  | "queued"
+  | "sending"
+  | "sent"
+  | "closed"
+  | "client"
+  | "case";
 
 type PendingAttachment = {
   file: File;
@@ -141,43 +162,54 @@ const IR_STATUSES = [
   "all",
   "waiting_human",
   "awaiting_first_reply",
+  "in_service",
   "qualifying",
   "waiting_documents",
+  "documents_pending",
+  "documents_partial",
   "documents_complete",
   "template_queued",
+  "template_sending",
   "template_sent",
   "opt_out",
+  "closed",
 ] as const;
+
+type ConversationFilter = (typeof IR_STATUSES)[number];
 
 const STATUS_LABELS: Record<string, string> = {
   all: "Todos",
   awaiting_first_reply: "Aguardando aceite",
+  in_service: "Em atendimento",
   qualifying: "Qualificação",
   waiting_documents: "Aguardando docs",
-  documents_partial: "Docs parciais",
+  documents_pending: "Docs pendentes",
+  documents_partial: "Docs enviados parcialmente",
   documents_complete: "Docs completos",
   waiting_human: "Requer atenção",
   template_queued: "Template na fila",
   template_sending: "Enviando template",
   template_sent: "Template enviado",
-  opt_out: "Opt-out",
+  opt_out: "Fechado",
   closed: "Fechado",
 };
 
 const STATUS_TONES: Record<string, StatusTone> = {
-  awaiting_first_reply: "warning",
-  qualifying: "soft",
-  waiting_documents: "warning",
-  documents_partial: "warning",
-  documents_complete: "success",
-  waiting_human: "info",
-  template_queued: "muted",
-  template_sending: "muted",
-  template_sent: "success",
-  opt_out: "danger",
-  closed: "danger",
-  client: "success",
-  converted_to_case: "success",
+  awaiting_first_reply: "accept",
+  in_service: "info",
+  qualifying: "qualify",
+  waiting_documents: "docs",
+  documents_pending: "partial",
+  documents_partial: "partial",
+  documents_complete: "complete",
+  waiting_human: "human",
+  template_queued: "queued",
+  template_sending: "sending",
+  template_sent: "sent",
+  opt_out: "closed",
+  closed: "closed",
+  client: "client",
+  converted_to_case: "case",
 };
 
 const IR_AGENT_PROMPT_PREVIEW = `Você é o agente da IR Consultoria para leads médicos com possível indício de Restituição do INSS.
@@ -225,6 +257,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [missingDocs, setMissingDocs] = useState<string[]>([]);
+  const [advboxInfo, setAdvboxInfo] = useState<AdvboxCaseInfo | null>(null);
   const [documentViewer, setDocumentViewer] = useState<DocumentViewer | null>(null);
   const [note, setNote] = useState("");
   const [importBusy, setImportBusy] = useState(false);
@@ -248,6 +281,13 @@ function Panel({ onLogout }: { onLogout: () => void }) {
   const [followUpBusy, setFollowUpBusy] = useState<ConversationFollowUpType | null>(
     null,
   );
+  const [reheatStatusFilter, setReheatStatusFilter] =
+    useState<ConversationFilter>("waiting_documents");
+  const [reheatQuietDays, setReheatQuietDays] = useState("2");
+  const [reheatTemplateType, setReheatTemplateType] =
+    useState<ConversationFollowUpType>("cnis_reminder");
+  const [reheatBatchBusy, setReheatBatchBusy] = useState(false);
+  const [advboxBusy, setAdvboxBusy] = useState(false);
   const [reactionBusyId, setReactionBusyId] = useState<string | null>(null);
   const [testPhone, setTestPhone] = useState("41984837507");
   const [testName, setTestName] = useState("Rodrigo");
@@ -255,7 +295,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     null,
   );
   const [conversationFilter, setConversationFilter] =
-    useState<(typeof IR_STATUSES)[number]>("all");
+    useState<ConversationFilter>("all");
   const [conversationSearch, setConversationSearch] = useState("");
 
   const integrations = (health?.integrations ?? {}) as Record<string, boolean>;
@@ -264,11 +304,19 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     (c) => c.status === "waiting_human",
   ).length;
 
+  function openConversations(filter: ConversationFilter) {
+    setConversationFilter(filter);
+    setSelectedConvId(null);
+    setPage("conversas");
+  }
+
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { all: conversations.length };
     for (const conversation of conversations) {
       counts[conversation.status] = (counts[conversation.status] ?? 0) + 1;
     }
+    counts.documents_pending =
+      (counts.waiting_documents ?? 0) + (counts.documents_partial ?? 0);
     return counts;
   }, [conversations]);
 
@@ -277,7 +325,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     return conversations
       .filter((conversation) => {
         if (conversationFilter === "all") return true;
-        return conversation.status === conversationFilter;
+        return conversationMatchesFilter(conversation, conversationFilter);
       })
       .filter((conversation) => {
         if (!q) return true;
@@ -313,7 +361,13 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         return raw ? Date.now() - new Date(raw).getTime() <= 24 * 60 * 60 * 1000 : false;
       }).length;
       const advanced = conversations.filter((conversation) =>
-        ["qualifying", "waiting_documents", "waiting_human"].includes(conversation.status),
+        [
+          "qualifying",
+          "waiting_documents",
+          "documents_partial",
+          "documents_complete",
+          "waiting_human",
+        ].includes(conversation.status),
       ).length;
       const rate = conversations.length
         ? `${Math.round((advanced / conversations.length) * 100)}%`
@@ -324,6 +378,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
           value: conversations.length,
           hint: "WhatsApp IR",
           icon: MessageSquare,
+          filter: "all" as ConversationFilter,
         },
         {
           label: "Últimas 24h",
@@ -345,9 +400,12 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         },
         {
           label: "Aguardando CNIS",
-          value: conversations.filter((c) => c.status === "waiting_documents").length,
+          value: conversations.filter((c) =>
+            ["waiting_documents", "documents_partial"].includes(c.status),
+          ).length,
           hint: "Docs pendentes",
           icon: FileText,
+          filter: "documents_pending" as ConversationFilter,
         },
         {
           label: "Atenção humana",
@@ -355,6 +413,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
           hint: "Takeover",
           icon: UserRoundCheck,
           tone: waitingHumanCount > 0 ? "danger" : "default",
+          filter: "waiting_human" as ConversationFilter,
         },
         {
           label: "Taxa de avanço",
@@ -407,6 +466,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     setMessages((messageResult.messages ?? []) as MessageRow[]);
     setDocuments((documentResult.documents ?? []) as DocumentRow[]);
     setMissingDocs(documentResult.missing ?? []);
+    setAdvboxInfo(documentResult.advbox ?? null);
   }
 
   useEffect(() => {
@@ -418,6 +478,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       setMessages([]);
       setDocuments([]);
       setMissingDocs([]);
+      setAdvboxInfo(null);
       setReplyToMessage(null);
       return;
     }
@@ -443,6 +504,21 @@ function Panel({ onLogout }: { onLogout: () => void }) {
 
     return () => window.clearInterval(timer);
   }, [selectedConvId]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void Promise.all([fetchLeads(), fetchReheat()])
+        .then(([leadResult, reheatResult]) => {
+          setLeads((leadResult.leads ?? []) as LeadRow[]);
+          setReheat((reheatResult.items ?? []) as ReheatRow[]);
+        })
+        .catch((err) => {
+          if (!(err instanceof AuthRequiredError)) setError(toErrorMessage(err));
+        });
+    }, 15000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function onCsvFile(file: File | null) {
     if (!file) return;
@@ -648,6 +724,40 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  async function onSendReheatByStatus(conversationIds: string[]) {
+    if (!conversationIds.length) return;
+    const label = statusLabel(reheatStatusFilter);
+    const confirmed = window.confirm(
+      `Enviar ${followUpLabel(reheatTemplateType)} para ${conversationIds.length} conversa(s) em "${label}"?`,
+    );
+    if (!confirmed) return;
+
+    setReheatBatchBusy(true);
+    setActionMsg("");
+    setError("");
+    let sent = 0;
+    let failed = 0;
+    try {
+      for (const conversationId of conversationIds) {
+        try {
+          await sendConversationFollowUp(conversationId, reheatTemplateType);
+          sent += 1;
+        } catch (err) {
+          failed += 1;
+          console.error("[panel] reheat batch item failed", conversationId, err);
+        }
+      }
+      setActionMsg(
+        `Reaquecer por estado: ${sent} template(s) enviados${
+          failed ? `, ${failed} falharam` : ""
+        }.`,
+      );
+      await refresh();
+    } finally {
+      setReheatBatchBusy(false);
+    }
+  }
+
   async function onTestOutreach() {
     setTestBusy("outreach");
     setActionMsg("");
@@ -750,6 +860,46 @@ function Panel({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  async function onAdvboxSync() {
+    if (!selectedConvId) return;
+    setAdvboxBusy(true);
+    setActionMsg("");
+    setError("");
+    try {
+      const result = await syncConversationToAdvbox(selectedConvId);
+      setActionMsg(
+        result.reused
+          ? `Advbox já estava sincronizado: contato ${result.customerId}, tarefa ${result.taskId}.`
+          : `Advbox criado: contato ${result.customerId}, caso ${result.lawsuitId}, tarefa ${result.taskId}.`,
+      );
+      await refresh();
+      await refreshConversationDetail(selectedConvId);
+    } catch (err) {
+      const message = toErrorMessage(err);
+      if (message.includes("cpf_required")) {
+        const cpf = window.prompt(
+          "Não consegui extrair o CPF automaticamente dos documentos. Informe o CPF do lead para cadastrar no Advbox:",
+        );
+        if (cpf?.trim()) {
+          try {
+            const result = await syncConversationToAdvbox(selectedConvId, cpf);
+            setActionMsg(
+              `Advbox criado: contato ${result.customerId}, caso ${result.lawsuitId}, tarefa ${result.taskId}.`,
+            );
+            await refresh();
+            await refreshConversationDetail(selectedConvId);
+          } catch (retryErr) {
+            setError(toErrorMessage(retryErr));
+          }
+        }
+      } else {
+        setError(message);
+      }
+    } finally {
+      setAdvboxBusy(false);
+    }
+  }
+
   async function onTestDrip(which: "trust" | "explain") {
     setTestBusy(which);
     setActionMsg("");
@@ -809,6 +959,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             conversations={conversations}
             leads={leads}
             note={note}
+            onOpenConversations={openConversations}
           />
         ) : null}
 
@@ -822,6 +973,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             messages={messages}
             documents={documents}
             missingDocs={missingDocs}
+            advboxInfo={advboxInfo}
             filter={conversationFilter}
             search={conversationSearch}
             replyDraft={replyDraft}
@@ -830,6 +982,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             mediaBusy={mediaBusy}
             conversationOutreachBusyId={conversationOutreachBusyId}
             followUpBusy={followUpBusy}
+            advboxBusy={advboxBusy}
             reactionBusyId={reactionBusyId}
             onFilter={setConversationFilter}
             onSearch={setConversationSearch}
@@ -842,6 +995,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             onResume={() => void onResume()}
             onOpenDocument={(id) => void onOpenDocument(id)}
             onDownloadDocument={(id) => void onDownloadDocument(id)}
+            onAdvboxSync={() => void onAdvboxSync()}
             onReplyDraft={setReplyDraft}
             onReplyTo={setReplyToMessage}
             onClearReplyTo={() => setReplyToMessage(null)}
@@ -876,8 +1030,19 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         {page === "reaquecer" ? (
           <ReheatPage
             reheat={reheat}
+            conversations={conversations}
+            statusCounts={statusCounts}
+            statusFilter={reheatStatusFilter}
+            quietDays={reheatQuietDays}
+            templateType={reheatTemplateType}
             busy={reheatBusy}
+            batchBusy={reheatBatchBusy}
             decideBusyId={decideBusyId}
+            onStatusFilter={setReheatStatusFilter}
+            onQuietDays={setReheatQuietDays}
+            onTemplateType={setReheatTemplateType}
+            onOpenConversations={openConversations}
+            onSendByStatus={(ids) => void onSendReheatByStatus(ids)}
             onRun={() => void onRunReheat()}
             onDecide={(id, decision) => void onDecide(id, decision)}
           />
@@ -1015,6 +1180,7 @@ function Dashboard({
   conversations,
   leads,
   note,
+  onOpenConversations,
 }: {
   stats: Array<{
     label: string;
@@ -1022,11 +1188,13 @@ function Dashboard({
     hint: string;
     icon: LucideIcon;
     tone?: string;
+    filter?: ConversationFilter;
   }>;
   integrations: Record<string, boolean>;
   conversations: ConversationRow[];
   leads: LeadRow[];
   note: string;
+  onOpenConversations: (filter: ConversationFilter) => void;
 }) {
   const last24h = conversations.filter((conversation) => {
     const raw =
@@ -1038,7 +1206,13 @@ function Dashboard({
   });
   const qualifiedRecent = conversations
     .filter((conversation) =>
-      ["qualifying", "waiting_documents", "waiting_human"].includes(conversation.status),
+      [
+        "qualifying",
+        "waiting_documents",
+        "documents_partial",
+        "documents_complete",
+        "waiting_human",
+      ].includes(conversation.status),
     )
     .slice(0, 5);
   const statusEntries = Object.entries(
@@ -1065,9 +1239,15 @@ function Dashboard({
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <article
+            <button
               key={stat.label}
-              className={stat.tone === "danger" ? "metric-card attention" : "metric-card"}
+              type="button"
+              className={
+                stat.tone === "danger"
+                  ? "metric-card attention clickable"
+                  : "metric-card clickable"
+              }
+              onClick={() => stat.filter && onOpenConversations(stat.filter)}
             >
               <div className="metric-icon">
                 <Icon className="icon" />
@@ -1077,7 +1257,7 @@ function Dashboard({
                 <strong>{stat.value}</strong>
                 <span>{stat.hint}</span>
               </div>
-            </article>
+            </button>
           );
         })}
       </section>
@@ -1130,11 +1310,16 @@ function Dashboard({
         </header>
         <div className="status-chart">
           {statusEntries.map(([status, count]) => (
-            <div key={status} className="status-bar">
+            <button
+              key={status}
+              type="button"
+              className="status-bar"
+              onClick={() => onOpenConversations(status as ConversationFilter)}
+            >
               <span style={{ height: `${Math.max(8, (count / maxStatus) * 100)}%` }} />
               <strong>{count}</strong>
               <em>{statusLabel(status)}</em>
-            </div>
+            </button>
           ))}
           {!statusEntries.length ? <EmptyState text="Sem conversas para distribuir." compact /> : null}
         </div>
@@ -1232,6 +1417,7 @@ function ConversationsPage({
   messages,
   documents,
   missingDocs,
+  advboxInfo,
   filter,
   search,
   replyDraft,
@@ -1240,6 +1426,7 @@ function ConversationsPage({
   mediaBusy,
   conversationOutreachBusyId,
   followUpBusy,
+  advboxBusy,
   reactionBusyId,
   onFilter,
   onSearch,
@@ -1250,6 +1437,7 @@ function ConversationsPage({
   onResume,
   onOpenDocument,
   onDownloadDocument,
+  onAdvboxSync,
   onReplyDraft,
   onReplyTo,
   onClearReplyTo,
@@ -1266,6 +1454,7 @@ function ConversationsPage({
   messages: MessageRow[];
   documents: DocumentRow[];
   missingDocs: string[];
+  advboxInfo: AdvboxCaseInfo | null;
   filter: (typeof IR_STATUSES)[number];
   search: string;
   replyDraft: string;
@@ -1274,6 +1463,7 @@ function ConversationsPage({
   mediaBusy: boolean;
   conversationOutreachBusyId: string | null;
   followUpBusy: ConversationFollowUpType | null;
+  advboxBusy: boolean;
   reactionBusyId: string | null;
   onFilter: (filter: (typeof IR_STATUSES)[number]) => void;
   onSearch: (search: string) => void;
@@ -1284,6 +1474,7 @@ function ConversationsPage({
   onResume: () => void;
   onOpenDocument: (id: string) => void;
   onDownloadDocument: (id: string) => void;
+  onAdvboxSync: () => void;
   onReplyDraft: (text: string) => void;
   onReplyTo: (message: MessageRow) => void;
   onClearReplyTo: () => void;
@@ -1721,10 +1912,13 @@ function ConversationsPage({
             messages={messages}
             documents={documents}
             missingDocs={missingDocs}
+            advboxInfo={advboxInfo}
             outreachBusy={conversationOutreachBusyId === selectedConversation.id}
+            advboxBusy={advboxBusy}
             onOpenDocument={onOpenDocument}
             onDownloadDocument={onDownloadDocument}
             onSendInitialOutreach={() => onConversationInitialOutreach(selectedConversation)}
+            onAdvboxSync={onAdvboxSync}
             onTakeover={onTakeover}
             onResume={onResume}
           />
@@ -1866,9 +2060,41 @@ function LeadsPage({
 }) {
   return (
     <div className="page-stack">
+      <section className="stats-grid outreach-stats">
+        <MetricCard
+          label="Total de leads"
+          value={leads.length}
+          hint="Base carregada no painel"
+          icon={Users}
+        />
+        <MetricCard
+          label="Com telefone"
+          value={leads.filter((lead) => Boolean(lead.phone)).length}
+          hint="Elegíveis para WhatsApp"
+          icon={Phone}
+        />
+        <MetricCard
+          label="Templates"
+          value={leads.filter((lead) => lead.status.includes("template")).length}
+          hint="Fila/envio inicial"
+          icon={Send}
+        />
+        <MetricCard
+          label="Fechados"
+          value={leads.filter((lead) => lead.status === "opt_out").length}
+          hint="Opt-out técnico"
+          icon={X}
+        />
+        <MetricCard
+          label="Convertidos"
+          value={leads.filter((lead) => lead.status === "converted_to_case").length}
+          hint="Casos criados"
+          icon={CheckCircle2}
+        />
+      </section>
       <PanelCard title="Leads Meta / formulário" badge={String(leads.length)} icon={Users}>
         <DataTable
-          columns={["Nome", "Telefone", "Origem", "Status", "Criado", "Ação"]}
+          columns={["Nome", "Telefone", "Email", "Origem", "Status", "Criado", "Ação"]}
           empty="Nenhum lead ainda. Use o webhook Meta Lead Ads ou o teste de primeiro contato."
         >
           {leads.map((lead) => {
@@ -1880,6 +2106,7 @@ function LeadsPage({
               <tr key={lead.id}>
                 <td>{lead.name?.trim() || "Sem nome"}</td>
                 <td className="mono">{formatPhoneDisplay(lead.phone)}</td>
+                <td>{lead.email ?? "Não informado"}</td>
                 <td>
                   <span className={`source-pill tone-${sourceTone(origin)}`}>
                     {origin}
@@ -2042,21 +2269,158 @@ function OutreachPage({
 
 function ReheatPage({
   reheat,
+  conversations,
+  statusCounts,
+  statusFilter,
+  quietDays,
+  templateType,
   busy,
+  batchBusy,
   decideBusyId,
+  onStatusFilter,
+  onQuietDays,
+  onTemplateType,
+  onOpenConversations,
+  onSendByStatus,
   onRun,
   onDecide,
 }: {
   reheat: ReheatRow[];
+  conversations: ConversationRow[];
+  statusCounts: Record<string, number>;
+  statusFilter: ConversationFilter;
+  quietDays: string;
+  templateType: ConversationFollowUpType;
   busy: boolean;
+  batchBusy: boolean;
   decideBusyId: string | null;
+  onStatusFilter: (filter: ConversationFilter) => void;
+  onQuietDays: (value: string) => void;
+  onTemplateType: (type: ConversationFollowUpType) => void;
+  onOpenConversations: (filter: ConversationFilter) => void;
+  onSendByStatus: (ids: string[]) => void;
   onRun: () => void;
   onDecide: (id: string, decision: "approved" | "rejected") => void;
 }) {
+  const quietDaysNumber = Math.max(0, Number(quietDays.replace(",", ".")) || 0);
+  const selectedConversations = conversations
+    .filter((conversation) => conversationMatchesFilter(conversation, statusFilter))
+    .filter((conversation) => isConversationQuietForDays(conversation, quietDaysNumber))
+    .filter((conversation) => !["closed", "opt_out", "documents_complete"].includes(conversation.status));
+  const eligibleIds = selectedConversations.map((conversation) => conversation.id);
+  const reheatStatuses = IR_STATUSES.filter(
+    (status) =>
+      !["all", "opt_out", "closed", "documents_complete"].includes(status),
+  );
+
   return (
     <div className="page-stack">
+      <PanelCard title="Campanha por estado" badge={String(eligibleIds.length)} icon={Send}>
+        <p className="panel-note">
+          Use esta área para reaquecer conversas paradas por etapa do funil. O envio usa
+          templates aprovados da Meta e respeita opt-out no backend.
+        </p>
+
+        <section className="reheat-status-grid">
+          {reheatStatuses.map((status) => (
+            <button
+              key={status}
+              type="button"
+              className={
+                statusFilter === status
+                  ? "reheat-status-card active"
+                  : "reheat-status-card"
+              }
+              onClick={() => onStatusFilter(status)}
+            >
+              <Badge tone={statusTone(status)}>{statusLabel(status)}</Badge>
+              <strong>{statusCounts[status] ?? 0}</strong>
+              <span>conversas</span>
+            </button>
+          ))}
+        </section>
+
+        <div className="reheat-controls">
+          <label>
+            Estado
+            <select
+              value={statusFilter}
+              onChange={(event) => onStatusFilter(event.target.value as ConversationFilter)}
+            >
+              {reheatStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {statusLabel(status)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Parado há pelo menos
+            <input
+              value={quietDays}
+              onChange={(event) => onQuietDays(event.target.value)}
+              inputMode="decimal"
+            />
+            <span>dias</span>
+          </label>
+          <label>
+            Template
+            <select
+              value={templateType}
+              onChange={(event) =>
+                onTemplateType(event.target.value as ConversationFollowUpType)
+              }
+            >
+              <option value="cnis_reminder">Lembrete CNIS</option>
+              <option value="continue_analysis">Continuar análise</option>
+              <option value="resume_analysis">Retomar análise</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => onOpenConversations(statusFilter)}
+          >
+            <MessageSquare className="icon" />
+            Ver conversas
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={batchBusy || !eligibleIds.length}
+            onClick={() => onSendByStatus(eligibleIds)}
+          >
+            <Send className="icon" />
+            {batchBusy ? "Enviando..." : "Disparar para filtrados"}
+          </button>
+        </div>
+
+        <DataTable
+          columns={["Lead", "Telefone", "Estado", "Última atividade"]}
+          empty="Nenhuma conversa elegível para este filtro."
+        >
+          {selectedConversations.slice(0, 80).map((conversation) => (
+            <tr key={conversation.id}>
+              <td>{leadDisplayName(conversation)}</td>
+              <td className="mono">{formatPhoneDisplay(conversation.phone)}</td>
+              <td>
+                <Badge tone={statusTone(conversation.status)}>
+                  {statusLabel(conversation.status)}
+                </Badge>
+              </td>
+              <td>{relativeTime(conversationActivityAt(conversation))}</td>
+            </tr>
+          ))}
+        </DataTable>
+        {selectedConversations.length > 80 ? (
+          <p className="panel-note">
+            Mostrando 80 de {selectedConversations.length} conversas elegíveis.
+          </p>
+        ) : null}
+      </PanelCard>
+
       <PanelCard
-        title="Fila de reaquecimento"
+        title="Fila de score"
         badge={String(reheat.length)}
         icon={History}
         action={
@@ -2067,7 +2431,8 @@ function ReheatPage({
         }
       >
         <p className="panel-note">
-          Aprovação humana antes de qualquer template. Skip/rejeitar nunca dispara.
+          Score por IA para histórico importado. Use como apoio; a campanha por estado acima é
+          para operar o funil atual.
         </p>
         <DataTable
           columns={["Telefone", "Score", "Ação", "Decisão", ""]}
@@ -2452,10 +2817,13 @@ function CaseSidePanel({
   messages,
   documents,
   missingDocs,
+  advboxInfo,
   outreachBusy,
+  advboxBusy,
   onOpenDocument,
   onDownloadDocument,
   onSendInitialOutreach,
+  onAdvboxSync,
   onTakeover,
   onResume,
 }: {
@@ -2463,10 +2831,13 @@ function CaseSidePanel({
   messages: MessageRow[];
   documents: DocumentRow[];
   missingDocs: string[];
+  advboxInfo: AdvboxCaseInfo | null;
   outreachBusy: boolean;
+  advboxBusy: boolean;
   onOpenDocument: (id: string) => void;
   onDownloadDocument: (id: string) => void;
   onSendInitialOutreach: () => void;
+  onAdvboxSync: () => void;
   onTakeover: () => void;
   onResume: () => void;
 }) {
@@ -2483,6 +2854,11 @@ function CaseSidePanel({
     !templateAlreadyQueued &&
     !templateAlreadySent &&
     Boolean(conversation.phone || conversation.lead_phone);
+  const documentsComplete =
+    documents.some((document) => document.document_type === "cnis") &&
+    documents.some((document) => document.document_type === "dirf_income") &&
+    missingDocs.length === 0;
+  const advboxSynced = Boolean(advboxInfo?.clientId && advboxInfo?.taskId);
   const documentTypeTotals = documents.reduce<Map<string, number>>((acc, document) => {
     const type = document.document_type ?? "other";
     acc.set(type, (acc.get(type) ?? 0) + 1);
@@ -2633,6 +3009,33 @@ function CaseSidePanel({
             Faltam: {missingDocs.map(documentTypeLabel).join(", ")}
           </p>
         ) : null}
+      </section>
+
+      <section>
+        <h3>Advbox</h3>
+        {advboxSynced ? (
+          <p>
+            Contato {advboxInfo?.clientId} · Caso {advboxInfo?.caseId} · Tarefa{" "}
+            {advboxInfo?.taskId}
+          </p>
+        ) : (
+          <p>Cria contato, caso e tarefa de cálculo para Joselia.</p>
+        )}
+        <button
+          type="button"
+          className="btn btn-primary side-full"
+          disabled={advboxBusy || advboxSynced || !documentsComplete}
+          onClick={onAdvboxSync}
+        >
+          <FileText className="icon" />
+          {advboxBusy
+            ? "Enviando..."
+            : advboxSynced
+              ? "Enviado ao Advbox"
+              : documentsComplete
+                ? "Enviar para Advbox"
+                : "Aguardando documentos"}
+        </button>
       </section>
 
       <section>
@@ -3427,6 +3830,45 @@ function statusLabel(status: string) {
 
 function statusTone(status: string): StatusTone {
   return STATUS_TONES[status] ?? "default";
+}
+
+function conversationMatchesFilter(
+  conversation: ConversationRow,
+  filter: ConversationFilter,
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "documents_pending") {
+    return ["waiting_documents", "documents_partial"].includes(conversation.status);
+  }
+  return conversation.status === filter;
+}
+
+function conversationActivityAt(conversation: ConversationRow): string | null | undefined {
+  return (
+    conversation.last_message_at ??
+    conversation.updated_at ??
+    conversation.last_inbound_at ??
+    conversation.last_outbound_at ??
+    conversation.created_at
+  );
+}
+
+function isConversationQuietForDays(
+  conversation: ConversationRow,
+  days: number,
+): boolean {
+  if (days <= 0) return true;
+  const raw = conversationActivityAt(conversation);
+  if (!raw) return true;
+  const timestamp = new Date(raw).getTime();
+  if (!Number.isFinite(timestamp)) return true;
+  return Date.now() - timestamp >= days * 24 * 60 * 60 * 1000;
+}
+
+function followUpLabel(type: ConversationFollowUpType): string {
+  if (type === "cnis_reminder") return "Lembrete CNIS";
+  if (type === "continue_analysis") return "Continuar análise";
+  return "Retomar análise";
 }
 
 function formatIntegrationName(key: string) {

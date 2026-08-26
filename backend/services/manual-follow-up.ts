@@ -84,7 +84,11 @@ export async function sendManualFollowUp(input: {
     deliveryStatus: "sent",
   });
   await touchConversation(conversation.id, {
-    status: input.type === "cnis_reminder" ? "waiting_documents" : conversation.status,
+    status:
+      input.type === "cnis_reminder" &&
+      !["documents_partial", "documents_complete"].includes(conversation.status)
+        ? "waiting_documents"
+        : conversation.status,
     lastOutbound: true,
     templateName,
     templateStatus: `manual_${input.type}`,
